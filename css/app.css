@@ -1,0 +1,457 @@
+/* FIRECOMMAND – ruhiges, dunkles Erscheinungsbild für Tablets */
+
+:root {
+  --bg: #0c0e11;
+  --flaeche: #13171c;
+  --flaeche-2: #191e25;
+  --flaeche-3: #212731;
+  --linie: #262d37;
+  --linie-stark: #343c48;
+  --text: #e8ebef;
+  --text-2: #a9b1bd;
+  --text-3: #6f7886;
+
+  --akzent: #e0553f;          /* Feuerwehr-Akzent, sparsam eingesetzt */
+  --ok: #3fae7a;
+  --warn: #d5a03b;
+  --krit: #e0553f;
+  --info: #5f9bd6;
+  --violett: #9b86d6;
+
+  --radius: 14px;
+  --radius-k: 10px;
+  --tap: 52px;
+
+  --schrift: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--schrift);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+.zahl { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* ---- Kopf ---------------------------------------------------------------- */
+.kopf {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: max(14px, env(safe-area-inset-top)) 28px 14px;
+  background: rgba(12, 14, 17, .92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--linie);
+}
+.marke { display: flex; flex-direction: column; line-height: 1.15; margin-right: auto; }
+.marke-name { font-weight: 750; letter-spacing: .14em; font-size: 17px; }
+.marke-name::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  background: var(--akzent); margin-right: 10px; transform: translateY(-2px);
+}
+.marke-sub { color: var(--text-3); font-size: 13px; letter-spacing: .02em; padding-left: 18px; }
+.kopf-info { display: flex; align-items: center; gap: 18px; font-size: 14px; color: var(--text-2); }
+.kopf-aktionen { display: flex; gap: 8px; }
+
+.systemstatus { display: inline-flex; align-items: center; gap: 8px; }
+.systemstatus .punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.systemstatus[data-zustand="bereit"] .punkt { background: var(--ok); box-shadow: 0 0 0 3px rgba(63,174,122,.18); }
+.systemstatus[data-zustand="fehler"] .punkt { background: var(--krit); box-shadow: 0 0 0 3px rgba(224,85,63,.2); }
+.systemstatus[data-zustand="fehler"] .text { color: var(--krit); }
+
+/* ---- Knöpfe -------------------------------------------------------------- */
+.knopf {
+  min-height: 44px; padding: 0 18px; border-radius: var(--radius-k);
+  border: 1px solid var(--linie-stark); background: var(--flaeche-2);
+  font-weight: 560; font-size: 15px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.knopf:hover { background: var(--flaeche-3); }
+.knopf:focus-visible, .kachel:focus-visible, .karte-tap:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible, .seg button:focus-visible {
+  outline: 2px solid var(--info); outline-offset: 2px;
+}
+.knopf-flach { background: transparent; border-color: transparent; color: var(--text-2); }
+.knopf-flach:hover { background: var(--flaeche-2); color: var(--text); }
+.knopf-primaer { background: var(--text); color: #0c0e11; border-color: var(--text); }
+.knopf-primaer:hover { background: #fff; }
+.knopf-primaer:disabled { background: var(--flaeche-3); color: var(--text-3); border-color: var(--linie); cursor: default; }
+.knopf-gross { min-height: var(--tap); padding: 0 24px; font-size: 16px; }
+.knopf-gefahr { color: var(--krit); border-color: rgba(224,85,63,.4); background: transparent; }
+.knopf-gefahr.bestaetigen { background: var(--krit); color: #fff; border-color: var(--krit); }
+
+/* ---- Inhalt -------------------------------------------------------------- */
+.inhalt { max-width: 1280px; margin: 0 auto; padding: 28px 28px 60px; display: grid; gap: 36px; }
+.laden { color: var(--text-3); }
+
+.bereich-kopf { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+.bereich-kopf h2 { margin: 0; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; font-weight: 650; color: var(--text-2); }
+.bereich-kopf .meta { color: var(--text-3); font-size: 13px; }
+.bereich-kopf .knopf { margin-left: auto; }
+
+.leer {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 16px 14px 20px; margin-bottom: 14px;
+  border: 1px dashed var(--linie-stark); border-radius: var(--radius);
+  background: var(--flaeche);
+}
+.leer p { margin: 0; color: var(--text-2); margin-right: auto; }
+
+/* ---- Kräfte -------------------------------------------------------------- */
+.kraefte-raster { display: grid; grid-template-columns: repeat(4, 1fr) 1.25fr; gap: 12px; }
+.karte {
+  position: relative; background: var(--flaeche); border: 1px solid var(--linie);
+  border-radius: var(--radius); padding: 18px 20px 20px; min-height: 132px;
+  display: flex; flex-direction: column; justify-content: space-between; text-align: left;
+}
+.karte-tap { cursor: pointer; width: 100%; }
+.karte-tap:hover { border-color: var(--linie-stark); background: #151a20; }
+.karte .label { font-size: 14px; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+.karte .wert { font-size: 46px; font-weight: 650; letter-spacing: -.02em; line-height: 1; margin-top: 18px; }
+.karte .hinweis { font-size: 13px; color: var(--text-3); margin-top: 8px; }
+.karte.gesamt { background: var(--flaeche-2); border-color: var(--linie-stark); }
+.karte.gesamt .label { color: var(--text); font-weight: 600; }
+.karte.gesamt .wert { font-size: 56px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+.nicht-erfasst .wert { color: var(--text-3); font-weight: 400; }
+.wert.null-krit { color: var(--krit); }
+
+/* ---- Einsatzmittel ------------------------------------------------------- */
+.mittel-raster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kachel {
+  background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--radius);
+  padding: 18px 20px; text-align: left; cursor: pointer; min-height: 176px;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+}
+.kachel:hover { border-color: var(--linie-stark); background: #151a20; }
+.kachel-kopf { display: flex; align-items: center; gap: 10px; }
+.kachel-kopf .name { font-weight: 620; font-size: 16px; }
+.badge {
+  font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
+  border: 1px solid var(--linie-stark); border-radius: 999px; padding: 2px 8px; margin-left: auto;
+}
+.kachel-wert { display: flex; align-items: baseline; gap: 10px; }
+.kachel-wert .wert { font-size: 40px; font-weight: 650; letter-spacing: -.02em; line-height: 1; }
+.kachel-wert .einheit { color: var(--text-2); font-size: 14px; }
+.kachel .unter { color: var(--text-3); font-size: 13px; }
+.kachel .erfassen { color: var(--text-2); font-size: 14px; margin-top: auto; display: inline-flex; align-items: center; gap: 6px; }
+.kachel .erfassen::after { content: "→"; }
+
+.balken { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--flaeche-3); margin-top: auto; }
+.balken span { display: block; height: 100%; }
+.legende { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-2); }
+.legende span { display: inline-flex; align-items: center; gap: 6px; }
+.legende .dot { width: 7px; height: 7px; }
+
+/* ---- Versorgung ---------------------------------------------------------- */
+.versorgung-karte {
+  background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--radius);
+  display: grid; grid-template-columns: 220px repeat(3, 1fr); align-items: stretch;
+  cursor: pointer; text-align: left; width: 100%; padding: 0; overflow: hidden;
+}
+.versorgung-karte:hover { border-color: var(--linie-stark); }
+.versorgung-karte .titel { padding: 20px; border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 4px; }
+.versorgung-karte .titel .name { font-weight: 620; }
+.versorgung-karte .titel .einheit { color: var(--text-3); font-size: 13px; }
+.versorgung-karte .feld { padding: 20px; border-right: 1px solid var(--linie); }
+.versorgung-karte .feld:last-child { border-right: 0; }
+.versorgung-karte .feld .label { color: var(--text-2); font-size: 14px; }
+.versorgung-karte .feld .wert { font-size: 38px; font-weight: 650; line-height: 1; margin-top: 14px; letter-spacing: -.02em; }
+.versorgung-karte .feld.nicht-erfasst .wert { color: var(--text-3); font-weight: 400; }
+
+/* ---- Sheet (Dialog) ------------------------------------------------------ */
+.sheet-huelle { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }
+.sheet-hintergrund { position: absolute; inset: 0; background: rgba(4, 5, 7, .72); }
+.sheet {
+  position: relative; width: min(640px, 100% - 32px); max-height: min(88vh, 900px);
+  background: var(--flaeche); border: 1px solid var(--linie-stark); border-radius: 18px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+}
+.sheet-kopf { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; border-bottom: 1px solid var(--linie); }
+.sheet-kopf h3 { margin: 0; font-size: 19px; font-weight: 650; }
+.sheet-kopf .sub { color: var(--text-3); font-size: 13px; }
+.sheet-kopf .knopf { margin-left: auto; }
+.sheet-koerper { padding: 18px 24px 22px; overflow-y: auto; display: grid; gap: 14px; }
+.sheet-fuss {
+  display: flex; align-items: center; gap: 10px; padding: 14px 20px 14px 24px;
+  border-top: 1px solid var(--linie); background: var(--flaeche-2);
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+.sheet-fuss .summe { margin-right: auto; color: var(--text-2); font-size: 14px; }
+.sheet-fuss .summe strong { color: var(--text); font-size: 22px; margin-left: 8px; }
+
+.meldung { border-radius: var(--radius-k); padding: 12px 14px; font-size: 14px; }
+.meldung.fehler { background: rgba(224,85,63,.12); border: 1px solid rgba(224,85,63,.35); color: #f2b5aa; }
+.meldung.info { background: var(--flaeche-2); border: 1px solid var(--linie); color: var(--text-2); }
+
+/* Mengen-Eingabe */
+.zeile {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--linie);
+}
+.zeile:last-child { border-bottom: 0; }
+.zeile .label { display: flex; align-items: center; gap: 10px; font-weight: 520; }
+.zeile .vorher { display: block; font-size: 12.5px; color: var(--text-3); font-weight: 400; margin-top: 2px; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper button {
+  width: var(--tap); height: var(--tap); border-radius: var(--radius-k);
+  border: 1px solid var(--linie-stark); background: var(--flaeche-2); font-size: 24px; cursor: pointer;
+}
+.stepper button:disabled { opacity: .35; cursor: default; }
+.stepper input {
+  width: 108px; height: var(--tap); text-align: center; font-size: 24px; font-weight: 620;
+  border-radius: var(--radius-k); border: 1px solid var(--linie-stark); background: var(--bg);
+}
+.stepper input::placeholder { color: var(--text-3); font-weight: 400; font-size: 15px; }
+.stepper input.ungueltig { border-color: var(--krit); }
+.stepper input.geaendert { border-color: var(--info); }
+
+/* Segmentierte Auswahl */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--linie); border-radius: 12px; }
+.seg button {
+  min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--text-2);
+  cursor: pointer; font-weight: 560; font-size: 14.5px; padding: 0 10px;
+}
+.seg button[aria-pressed="true"] { background: var(--flaeche-3); color: var(--text); }
+.seg button:disabled { opacity: .4; cursor: default; }
+.seg.status { grid-template-columns: repeat(2, 1fr); grid-auto-flow: row; }
+.seg.status button { min-height: var(--tap); display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* Formular */
+.feldgruppe { display: grid; gap: 6px; }
+.feldgruppe label { font-size: 13.5px; color: var(--text-2); }
+.feldgruppe input, .feldgruppe textarea, .feldgruppe select {
+  min-height: var(--tap); border-radius: var(--radius-k); border: 1px solid var(--linie-stark);
+  background: var(--bg); padding: 10px 14px; font-size: 16px; width: 100%;
+}
+.feldgruppe textarea { min-height: 96px; resize: vertical; }
+.zwei { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Objektliste */
+.objekte { display: grid; gap: 8px; }
+.objekt {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+  padding: 14px 16px; border: 1px solid var(--linie); border-radius: var(--radius-k);
+  background: var(--flaeche-2); cursor: pointer; text-align: left; width: 100%;
+}
+.objekt:hover { border-color: var(--linie-stark); }
+.objekt .kennung { font-weight: 650; }
+.objekt .bez { color: var(--text-2); font-size: 14px; }
+.objekt .ort { color: var(--text-3); font-size: 13px; grid-column: 1; }
+.chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--flaeche-3); grid-row: 1 / span 2; grid-column: 2; }
+
+/* Protokoll */
+.protokoll { display: grid; }
+.eintrag { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--linie); font-size: 14px; }
+.eintrag .zeit { color: var(--text-3); }
+.eintrag .was { font-weight: 560; }
+.eintrag .diff { color: var(--text-2); margin-top: 2px; }
+.eintrag .diff .alt { color: var(--text-3); text-decoration: line-through; text-decoration-color: rgba(255,255,255,.25); }
+.eintrag .wer { color: var(--text-3); font-size: 12.5px; margin-top: 2px; }
+
+/* Toast */
+.toast {
+  position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 60; background: var(--flaeche-3); border: 1px solid var(--linie-stark); border-radius: 12px;
+  padding: 12px 18px; font-size: 14.5px; box-shadow: 0 12px 30px rgba(0,0,0,.4); max-width: calc(100% - 32px);
+}
+.toast.fehler { border-color: rgba(224,85,63,.5); }
+
+/* ---- Responsiv ----------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .kraefte-raster { grid-template-columns: repeat(4, 1fr); }
+  .kraefte-raster .gesamt { grid-column: 1 / -1; order: -1; min-height: 0; flex-direction: row; align-items: center; }
+  .kraefte-raster .gesamt .wert { margin-top: 0; margin-left: auto; }
+  .mittel-raster { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .kopf { padding: 12px 16px; gap: 10px; }
+  .kopf-info { order: 3; width: 100%; justify-content: space-between; }
+  .inhalt { padding: 20px 14px 48px; gap: 28px; }
+  .kraefte-raster { grid-template-columns: repeat(2, 1fr); }
+  .karte .wert { font-size: 38px; }
+  .mittel-raster { grid-template-columns: 1fr; }
+  .kachel { min-height: 0; }
+  .versorgung-karte { grid-template-columns: repeat(3, 1fr); }
+  .versorgung-karte .titel { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--linie); }
+  .versorgung-karte .feld { padding: 16px; }
+  .versorgung-karte .feld .wert { font-size: 30px; }
+  .sheet-huelle { align-items: flex-end; }
+  .sheet { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  .stepper input { width: 84px; }
+  .zwei { grid-template-columns: 1fr; }
+}
+
+/* ---- Ergänzungen Stufe 02b: Funktionen und Unterteilungen ---------------- */
+.karte .aufteilung { display: block; font-size: 12.5px; color: var(--text-3); margin-top: 8px; }
+.karte .aufteilung b { color: var(--text-2); font-weight: 600; }
+.gesamt-wert { display: flex; flex-direction: column; gap: 6px; }
+.staerke { font-size: 15px; color: var(--text-2); letter-spacing: .02em; }
+.staerke b { color: var(--text); }
+.staerke-legende { font-size: 11.5px; color: var(--text-3); letter-spacing: .04em; }
+
+.kachel-gruppe { cursor: default; gap: 10px; }
+.kachel-gruppe:hover { border-color: var(--linie); background: var(--flaeche); }
+.gz-liste { display: grid; gap: 6px; }
+.gz {
+  display: grid; grid-template-columns: minmax(110px, 38%) 1fr; grid-template-rows: auto auto; gap: 6px 12px;
+  align-items: center; width: 100%; text-align: left; cursor: pointer;
+  background: var(--flaeche-2); border: 1px solid var(--linie); border-radius: var(--radius-k);
+  padding: 10px 12px; min-height: var(--tap);
+}
+.gz:hover { border-color: var(--linie-stark); }
+.gz-name { font-weight: 600; font-size: 14.5px; }
+.gz-wert { display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; }
+.gz-wert .wert { font-size: 24px; font-weight: 650; line-height: 1; }
+.gz.nicht-erfasst .gz-wert .wert { color: var(--text-3); font-weight: 400; }
+.gz-unter { font-size: 12.5px; color: var(--text-3); }
+.gz-balken { grid-column: 1 / -1; height: 4px; margin-top: 0; }
+.unterteilung { display: grid; gap: 6px; }
+@media (max-width: 1024px) {
+  .kraefte-raster .gesamt .gesamt-wert { margin-left: auto; align-items: flex-end; }
+}
+.offen-punkt { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: 6px; transform: translateY(-2px); }
+
+/* ---- iPad-Version -------------------------------------------------------- */
+.hinweisband {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  max-width: 1280px; margin: 16px auto 0; padding: 10px 14px 10px 18px;
+  border: 1px solid rgba(213,160,59,.4); background: rgba(213,160,59,.08);
+  border-radius: var(--radius); color: #ecd3a0; font-size: 14.5px;
+}
+.hinweisband span { margin-right: auto; }
+@media (min-width: 721px) { .hinweisband { margin-left: 28px; margin-right: 28px; } }
+@media (min-width: 1337px) { .hinweisband { margin-left: auto; margin-right: auto; } }
+.block { border-top: 1px solid var(--linie); padding-top: 16px; display: grid; gap: 10px; }
+.block h4 { margin: 0; font-size: 15px; }
+.text-2 { color: var(--text-2); margin: 0; font-size: 14.5px; }
+.knopfreihe { display: flex; gap: 10px; flex-wrap: wrap; }
+a.knopf { text-decoration: none; color: var(--text); }
+@media (min-width: 721px) { .kopf { padding-left: max(28px, env(safe-area-inset-left)); padding-right: max(28px, env(safe-area-inset-right)); } }
+
+/* ---- Einsätze ------------------------------------------------------------ */
+.marke { cursor: pointer; }
+.start { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.startkachel {
+  position: relative; display: flex; flex-direction: column; gap: 10px; justify-content: flex-end;
+  min-height: 240px; padding: 28px; border-radius: 20px; text-decoration: none; color: var(--text);
+  background: var(--flaeche); border: 1px solid var(--linie);
+}
+.startkachel:hover { border-color: var(--linie-stark); background: #151a20; }
+.startkachel.primaer { background: linear-gradient(160deg, #1c2129, #14181e); border-color: var(--linie-stark); }
+.startkachel-symbol {
+  position: absolute; top: 24px; left: 28px; width: 52px; height: 52px; border-radius: 14px;
+  display: grid; place-items: center; font-size: 30px; font-weight: 500; background: var(--flaeche-3);
+}
+.startkachel.primaer .startkachel-symbol { background: var(--akzent); color: #fff; }
+.startkachel-titel { font-size: 26px; font-weight: 680; letter-spacing: -.01em; }
+.startkachel-text { color: var(--text-2); font-size: 15px; }
+.startkachel.gesperrt { opacity: .55; cursor: not-allowed; }
+.startkachel .badge.folgt { position: absolute; top: 24px; right: 24px; }
+.badge.folgt { color: var(--warn); border-color: rgba(213,160,59,.45); margin-left: 6px; }
+.laufend-text { color: var(--ok); font-weight: 600; }
+
+.schnellzugriff { display: grid; gap: 10px; }
+.einsatz-liste { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.einsatz-karte {
+  display: grid; gap: 4px; padding: 18px 20px; border-radius: var(--radius); text-decoration: none; color: var(--text);
+  background: var(--flaeche); border: 1px solid var(--linie);
+}
+.einsatz-karte:hover { border-color: var(--linie-stark); }
+.einsatz-karte.laufend { border-left: 3px solid var(--ok); }
+.ek-kopf { display: flex; align-items: center; gap: 10px; }
+.ek-nr { color: var(--text-2); font-size: 14px; }
+.ek-status { margin-left: auto; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.einsatz-karte.laufend .ek-status { color: var(--ok); }
+.ek-stichwort { font-size: 18px; font-weight: 640; }
+.ek-ort { color: var(--text-2); }
+.ek-zeit { color: var(--text-3); font-size: 13px; }
+
+.pfad a { color: var(--text-2); text-decoration: none; font-size: 15px; display: inline-flex; min-height: 44px; align-items: center; }
+.seitentitel { margin: 0; font-size: 28px; font-weight: 680; letter-spacing: -.01em; }
+.seitentext { margin: -20px 0 0; color: var(--text-2); }
+.formular { display: grid; gap: 16px; max-width: 720px; }
+.auswahl { display: grid; gap: 8px; }
+.option {
+  display: flex; gap: 14px; align-items: flex-start; padding: 16px; cursor: pointer;
+  border: 1px solid var(--linie-stark); border-radius: var(--radius-k); background: var(--flaeche);
+}
+.option input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--akzent); }
+.option:has(input:checked) { border-color: var(--text-2); background: var(--flaeche-2); }
+.option.gesperrt { opacity: .55; cursor: not-allowed; }
+.text-3 { color: var(--text-3); font-size: 14px; }
+
+.einsatzleiste {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 16px;
+  border: 1px solid var(--linie-stark); border-radius: var(--radius); background: var(--flaeche-2);
+}
+.einsatzleiste.laufend { border-left: 3px solid var(--ok); }
+.einsatzleiste .zurueck {
+  width: 48px; height: 48px; display: grid; place-items: center; border-radius: var(--radius-k);
+  background: var(--flaeche-3); color: var(--text); text-decoration: none; font-size: 22px;
+}
+.el-info { flex: 1; min-width: 240px; }
+.el-titel { font-size: 18px; font-weight: 650; }
+.el-sub { color: var(--text-2); font-size: 13.5px; margin-top: 2px; }
+.el-aktionen { display: flex; gap: 8px; flex-wrap: wrap; }
+.nurlesen { margin: -20px 0 0; }
+
+/* Kräfte mit Plus/Minus */
+.karte.kraft { justify-content: flex-start; gap: 12px; min-height: 0; padding: 16px; }
+.kraft-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.karte.kraft .wert { font-size: 36px; margin-top: 0; }
+.fz-liste { display: grid; gap: 6px; }
+.fz { display: grid; grid-template-columns: 1fr 44px 40px 44px; align-items: center; gap: 4px; }
+.fz-name { font-size: 13.5px; color: var(--text-2); font-weight: 560; }
+.fz-wert { text-align: center; font-size: 19px; font-weight: 650; }
+.fz.offen .fz-wert { color: var(--text-3); font-weight: 400; }
+.mini {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--linie-stark);
+  background: var(--flaeche-3); font-size: 22px; line-height: 1; cursor: pointer; touch-action: manipulation;
+}
+.mini:active { background: var(--linie-stark); }
+.mini:disabled { opacity: .3; cursor: default; }
+.karte.kraft .fz:has(.mini) { grid-template-columns: 1fr 44px 40px 44px; }
+.karte.kraft .fz:not(:has(.mini)) { grid-template-columns: 1fr auto; }
+.kraefte-raster { align-items: stretch; }
+
+/* Fahrzeugliste mit Schnellstatus */
+.objekt-zeile { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--linie); border-radius: var(--radius-k); background: var(--flaeche-2); }
+.objekt-zeile.offen { border-style: dashed; }
+.objekt-name { display: grid; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; gap: 2px; }
+.objekt-name .kennung { font-weight: 650; font-size: 16px; }
+.objekt-name .bez { color: var(--text-2); }
+.objekt-name .ort { color: var(--text-3); font-size: 13px; }
+.objekt-zeile.offen .objekt-name .ort { color: var(--warn); }
+.seg.schnellstatus { grid-template-columns: repeat(4, 1fr); grid-auto-flow: row; }
+.seg.schnellstatus button { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; padding: 0 6px; }
+
+@media (max-width: 1024px) {
+  .kraefte-raster { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .start, .einsatz-liste { grid-template-columns: 1fr; }
+  .startkachel { min-height: 170px; }
+  .seg.schnellstatus { grid-template-columns: repeat(2, 1fr); }
+  .kraefte-raster { grid-template-columns: 1fr; }
+}
+
+/* Kräfte: Gesamtstärke als Band oben, darunter vier Statuskarten */
+.kraefte-raster { grid-template-columns: repeat(4, 1fr); }
+.kraefte-raster .gesamt { grid-column: 1 / -1; order: -1; min-height: 0; flex-direction: row; align-items: center; }
+.kraefte-raster .gesamt .wert { margin-top: 0; }
+.kraefte-raster .gesamt .gesamt-wert { margin-left: auto; align-items: flex-end; }
+@media (max-width: 1024px) { .kraefte-raster { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .kraefte-raster { grid-template-columns: 1fr; } }
+.kraefte-raster .gesamt { padding-top: 14px; padding-bottom: 14px; }
+.kraefte-raster .gesamt .wert { font-size: 44px; }
