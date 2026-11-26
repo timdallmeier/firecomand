@@ -2,7 +2,7 @@
 // FIRECOMMAND nach dem ersten Laden ohne Netz startet.
 // Bei einer neuen Version VERSION erhöhen.
 
-const VERSION = "firecommand-ipad-8";
+const VERSION = "firecommand-ipad-12";
 const DATEIEN = [
   "./",
   "./index.html",
@@ -26,6 +26,7 @@ const DATEIEN = [
   "./js/board.js",
   "./js/symbole.js",
   "./js/atemschutz.js",
+  "./js/nachschub.js",
   "./js/daten/migration.js",
   "./js/daten/struktur.js",
   "./js/daten/service.js",

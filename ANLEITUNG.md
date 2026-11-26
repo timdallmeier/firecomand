@@ -1,4 +1,13 @@
-# FIRECOMMAND auf dem iPad – offline (Version 3)
+# FIRECOMMAND auf dem iPad – offline (Version 4)
+
+## Neu in Version 4
+
+* **Bearbeiter-Abfrage:** Direkt nach dem Eröffnen fragt FIRECOMMAND „Wer bearbeitet den Einsatz?“ (Pflichtfeld).
+  Der Name steht in der Einsatzleiste („Bearbeiter: …“, antippen zum Ändern), im Protokoll und im Lagebericht.
+* **Einsatzmittel und Versorgung:** vier gleich große Schaltflächen – Fahrzeuge, Abrollbehälter, Atemschutz, **Nachschub**.
+* **Nachschub** (eigene Seite): sechs gleich große Kacheln mit den Beständen direkt sichtbar – Kraftstoff, PSA,
+  Schaummittel, Schläuche und Armaturen (neu mit **Verteiler**), Verpflegung und neu **Ölbindemittel** in Säcken
+  (verfügbar, Gesamtbestand, abkommandiert). Eine Zeile oder Kachel antippen öffnet die Erfassung.
 
 ## Neu in Version 3
 
