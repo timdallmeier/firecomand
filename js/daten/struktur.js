@@ -79,6 +79,7 @@ export const GRUPPEN = [
   { key: "psa", bereich: "einsatzmittel", name: "PSA", unterteilung: null, summierbar: false, symbol: "psa" },
   { key: "schaummittel", bereich: "einsatzmittel", name: "Schaummittel", unterteilung: null, summierbar: false, symbol: "schaum" },
   { key: "schlaeuche", bereich: "einsatzmittel", name: "Schläuche und Armaturen", unterteilung: "Material", summierbar: false, symbol: "schlauch" },
+  { key: "oelbindemittel", bereich: "einsatzmittel", name: "Ölbindemittel", unterteilung: null, summierbar: false, symbol: "oel" },
   { key: "verpflegung", bereich: "versorgung", name: "Verpflegung", unterteilung: "Art", summierbar: false, symbol: "verpflegung" },
 ];
 
@@ -104,6 +105,8 @@ export const KATEGORIEN = [
   k("strahlrohr_c", "einsatzmittel", "schlaeuche", "C-Strahlrohre", "Stück", "anzahl", { untergruppe: "Strahlrohre" }),
   k("schaumrohr_s4", "einsatzmittel", "schlaeuche", "S4", "Stück", "anzahl", { untergruppe: "Schaumrohre" }),
   k("schaumrohr_s8", "einsatzmittel", "schlaeuche", "S8", "Stück", "anzahl", { untergruppe: "Schaumrohre" }),
+  k("verteiler", "einsatzmittel", "schlaeuche", "Verteiler", "Stück", "anzahl", { untergruppe: "Verteiler" }),
+  k("oelbindemittel", "einsatzmittel", "oelbindemittel", "Ölbindemittel", "Säcke", "vorrat"),
   k("schaummittel", "einsatzmittel", "schaummittel", "Schaummittel", "Liter", "vorrat"),
   k("psa", "einsatzmittel", "psa", "PSA", "Sätze", "status"),
 
@@ -120,6 +123,16 @@ export function felder(kat) {
   if (kat.typ === "anzahl") return ANZAHL_FELDER;
   return STATUS[kat.bereich];
 }
+
+// Kacheln „Kräfte und Einsatzmittel“: vier gleich große Schaltflächen.
+// „Nachschub“ fasst die Vorräte und Verbrauchsmaterialien zusammen (eigene Seite).
+export const RESSOURCEN_KACHELN = [
+  { key: "fahrzeuge", name: "Fahrzeuge", symbol: "fahrzeug" },
+  { key: "abrollbehaelter", name: "Abrollbehälter", symbol: "abrollbehaelter" },
+  { key: "atemschutz", name: "Atemschutz", symbol: "atemschutz" },
+  { key: "nachschub", name: "Nachschub", symbol: "nachschub" },
+];
+export const NACHSCHUB_GRUPPEN = ["kraftstoff", "psa", "schaummittel", "schlaeuche", "verpflegung", "oelbindemittel"];
 
 // Einsatzarten. "flaeche" ist vorbereitet und wird in einer späteren Version gebaut.
 export const EINSATZARTEN = [

@@ -18,7 +18,7 @@ import {
 } from "./struktur.js";
 
 export const MAX_MENGE = 1000000;
-const MAX_TEXT = { funkrufname: 40, bezeichnung: 60, standort: 120, bemerkungen: 1000, stichwort: 80, ort: 120, bemerkung: 500,
+const MAX_TEXT = { bearbeiter: 60, funkrufname: 40, bezeichnung: 60, standort: 120, bemerkungen: 1000, stichwort: 80, ort: 120, bemerkung: 500,
   name: 60, text: 300, label: 60, groesse: 60 };
 
 export class FachFehler extends Error { constructor(m) { super(m); this.status = 400; } }
@@ -36,7 +36,7 @@ function ganzzahl(wert, feld = "Menge") {
   return wert;
 }
 
-const FELDNAME = { funkrufname: "Funkrufname", bezeichnung: "Bezeichnung", standort: "Standort", bemerkungen: "Bemerkungen", stichwort: "Einsatzstichwort",
+const FELDNAME = { bearbeiter: "Name", funkrufname: "Funkrufname", bezeichnung: "Bezeichnung", standort: "Standort", bemerkungen: "Bemerkungen", stichwort: "Einsatzstichwort",
   ort: "Einsatzort / Objekt", bemerkung: "Bemerkung", name: "Bezeichnung", text: "Text", label: "Beschriftung", groesse: "Größe" };
 
 function text(wert, feld, pflicht = false) {
@@ -145,6 +145,16 @@ export function standarddatenAnwenden(stamm, einsatz, benutzer) {
     eintraege.push(katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "erfasst", null, { status, staerke }, benutzer, "standarddatensatz"));
   }
   return eintraege;
+}
+
+/** Wer bearbeitet den Einsatz (Abfrage direkt nach dem Eröffnen, später änderbar). */
+export function einsatzBearbeiterSetzen(einsatz, name, benutzer) {
+  offen(einsatz);
+  const neu = text(name, "bearbeiter", true);
+  const alt = einsatz.bearbeiter || null;
+  if (alt === neu) return [];
+  einsatz.bearbeiter = neu;
+  return abschluss(einsatz, [eintrag(einsatz, "einsatz", "einsatz", "bearbeiter", alt ? "geaendert" : "erfasst", alt, neu, benutzerName(neu))]);
 }
 
 export function einsatzBeenden(stamm, einsatz, benutzer) {

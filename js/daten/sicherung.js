@@ -129,6 +129,7 @@ function einsatzPruefen(e, stamm) {
     id: e.id, nummer: String(e.nummer || e.id), art: e.art, stichwort: e.stichwort, ort: e.ort, bemerkung: e.bemerkung || "",
     beginn: e.beginn, ende: typeof e.ende === "string" ? e.ende : null, status: e.status,
     angelegt_von: e.angelegt_von ?? null, beendet_von: e.beendet_von ?? null,
+    bearbeiter: typeof e.bearbeiter === "string" ? e.bearbeiter.slice(0, 60) : null,
     startbestand: e.startbestand === "standarddaten" ? "standarddaten" : "leer",
     stand, letzte_aenderung: typeof e.letzte_aenderung === "string" ? e.letzte_aenderung : e.beginn,
   };
