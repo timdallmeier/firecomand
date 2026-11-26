@@ -21,6 +21,8 @@ const ICONS = {
   einsatz: P("M12 3v4M12 17v4M3 12h4M17 12h4") + `<circle cx="12" cy="12" r="5"/>`,
   liste: P("M8 6h13M8 12h13M8 18h13") + `<circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>`,
   plus: P("M12 5v14M5 12h14"),
+  nachschub: `<rect x="3" y="12" width="8" height="8" rx="1"/><rect x="13" y="12" width="8" height="8" rx="1"/><rect x="8" y="4" width="8" height="8" rx="1"/>` + P("M7 16h0M17 16h0M12 8h0"),
+  oel: P("M8 3.5c0 0-4 5-4 8a4 4 0 0 0 8 0c0-3-4-8-4-8Z") + `<rect x="13" y="9" width="8" height="11" rx="2"/>` + P("M15 12.5h4M15 15.5h4"),
   muell: P("M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"),
 };
 

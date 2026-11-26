@@ -127,7 +127,8 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
     ["Status", e.status === "laufend" ? `laufend seit ${dauer(e.beginn)}` : `beendet ${datumZeit(e.ende)} Uhr (Dauer ${dauer(e.beginn, e.ende)})`],
     ["Startbestand", e.startbestand === "standarddaten" ? "Standarddaten übernommen" : "leer, manuell erfasst"],
     ...(e.bemerkung ? [["Bemerkung", e.bemerkung]] : []),
-    ["Bericht erstellt von", bearbeiter || "nicht angegeben"],
+    ["Einsatz bearbeitet von", e.bearbeiter || "nicht angegeben"],
+    ["Bericht erstellt von", bearbeiter || e.bearbeiter || "nicht angegeben"],
   ];
   for (const [l, v] of felder) {
     const zeilen = pdf.umbrechen(v, r.innen - 130, 10);
@@ -200,7 +201,7 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
   r.abschnitt("4. Einsatzmittel");
   const vorrat = em.kategorien.filter((k) => k.typ === "vorrat");
   r.tabelle(
-    [{ titel: "Kraftstoff / Schaummittel", anteil: 2.2 }, { titel: "Einheit", anteil: 0.8 }, { titel: "Gesamtbestand", anteil: 1.2, rechts: true },
+    [{ titel: "Vorräte", anteil: 2.2 }, { titel: "Einheit", anteil: 0.8 }, { titel: "Gesamtbestand", anteil: 1.2, rechts: true },
       { titel: "Abkommandiert", anteil: 1.2, rechts: true }, { titel: "Verfügbar", anteil: 1.1, rechts: true }],
     vorrat.map((k) => ({ zellen: [k.gruppe_key === "kraftstoff" ? `Kraftstoff ${k.name}` : k.name, k.einheit, nz(k.gesamt), nz(k.abkommandiert), nz(k.verfuegbar)],
       farben: [, , , , k.verfuegbar === 0 ? FARBE.rot : null] })),

@@ -1,6 +1,7 @@
 // Darstellung eines Einsatzes: Kräfte, Einsatzmittel, Versorgung
 // nurLesen = beendeter Einsatz: keine Bedienelemente zum Ändern
 
+import { NACHSCHUB_GRUPPEN, RESSOURCEN_KACHELN } from "./daten/struktur.js";
 import { icon } from "./symbole.js";
 import { dot, esc, farbe, zahl } from "./ui.js";
 
@@ -214,23 +215,39 @@ function kachelVerpflegung(vs) {
     </div>`;
 }
 
-function einsatzmittel(b, vs, einsatzId) {
-  const kacheln = b.gruppen.map((g) => {
-    const glieder = b.kategorien.filter((k) => k.gruppe_key === g.key);
-    if (["fahrzeuge", "abrollbehaelter", "atemschutz"].includes(g.key)) return knopfKachel(g, einsatzId);
-    if (g.typ === "vorrat") return kachelVorrat(g, glieder);
-    if (g.typ === "anzahl") return kachelAnzahl(g, glieder);
-    return glieder.length === 1 ? kachelStatus(b, glieder[0], g) : kachelStatusGruppe(b, g, glieder);
-  }).join("") + kachelVerpflegung(vs);
+// Einsatzmittel und Versorgung: vier gleich große Schaltflächen (nur Symbol und Titel)
+function einsatzmittel(einsatzId) {
   return `
     <section>
       <div class="bereich-kopf"><h2>Einsatzmittel und Versorgung</h2></div>
-      <div class="mittel-raster v3">${kacheln}</div>
+      <div class="knopfkacheln vier">
+        ${RESSOURCEN_KACHELN.map((k) => `
+          <a class="knopfkachel" href="#/einsatz/${einsatzId}/${k.key}">
+            <span class="kk-icon">${icon(k.symbol, 34)}</span>
+            <span class="kk-titel">${esc(k.name)}</span>
+          </a>`).join("")}
+      </div>
     </section>`;
 }
 
 export function renderDashboard(daten, optionen = {}) {
   nurLesen = !!optionen.nurLesen;
-  const [kr, em, vs] = daten.bereiche;
-  return kraefte(kr) + einsatzmittel(em, vs, daten.einsatz.id);
+  return kraefte(daten.bereiche[0]) + einsatzmittel(daten.einsatz.id);
+}
+
+// Nachschub: die Bestände direkt anzeigen (verfügbar), Antippen öffnet die Erfassung
+export function renderNachschub(daten, optionen = {}) {
+  nurLesen = !!optionen.nurLesen;
+  const alle = daten.bereiche;
+  const kacheln = NACHSCHUB_GRUPPEN.map((key) => {
+    const b = alle.find((x) => x.gruppen.some((g) => g.key === key));
+    if (!b) return "";
+    const g = b.gruppen.find((x) => x.key === key);
+    const glieder = b.kategorien.filter((k) => k.gruppe_key === key);
+    if (key === "verpflegung") return kachelVerpflegung(b);
+    if (g.typ === "vorrat") return kachelVorrat(g, glieder);
+    if (g.typ === "anzahl") return kachelAnzahl(g, glieder);
+    return glieder.length === 1 ? kachelStatus(b, glieder[0], g) : kachelStatusGruppe(b, g, glieder);
+  }).join("");
+  return `<div class="nachschub-raster">${kacheln}</div>`;
 }

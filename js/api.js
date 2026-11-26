@@ -66,6 +66,7 @@ export const api = {
     const r = svc.einsatzAnlegen(stamm, daten, bearbeiter, optionen);
     return { eintraege: r.eintraege, neuerEinsatz: r.einsatz, ergebnis: svc.einsatzKurz(r.einsatz) };
   })),
+  einsatzBearbeiter: (name) => imEinsatz((stamm, e) => svc.einsatzBearbeiterSetzen(e, name, bearbeiter)),
   einsatzBeenden: () => imEinsatz((stamm, e) => svc.einsatzBeenden(stamm, e, bearbeiter)),
   // Löscht den Einsatz mit allen zugehörigen Daten (Stand, Whiteboard, Zuordnungen, Protokoll)
   einsatzLoeschen: (id) => ausfuehren(async () => {

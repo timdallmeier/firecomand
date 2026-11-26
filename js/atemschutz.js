@@ -16,12 +16,11 @@ export function zeigeAtemschutz(main, ctx) {
       <span class="kachel-icon gross">${icon("atemschutz", 26)}</span>
       <div><h1 class="seitentitel">Atemschutz</h1><p class="text-3" style="margin:2px 0 0">Bestände in Stück</p></div>
     </div>
-    <section class="knopfkacheln">
+    <section class="knopfkacheln drei">
       ${kats.map((k) => `
         <button class="knopfkachel" type="button" data-kategorie="${k.key}">
           <span class="kk-icon">${icon(k.symbol, 34)}</span>
           <span class="kk-titel">${esc(k.name)}</span>
-          <span class="kk-text">${k.positionen.length ? `${zahl(k.gesamt)} Stück · ${zahl(k.positionen.length)} ${k.positionen.length === 1 ? "Position" : "Positionen"}` : "Noch nichts erfasst"}</span>
         </button>`).join("")}
     </section>`;
   main.querySelectorAll("[data-kategorie]").forEach((b) => b.addEventListener("click", () => {

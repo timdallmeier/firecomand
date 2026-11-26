@@ -11,6 +11,7 @@
 //   #/einsatz/<id>/fahrzeuge    Fahrzeugübersicht
 //   #/einsatz/<id>/abrollbehaelter  Abrollbehälterübersicht
 //   #/einsatz/<id>/atemschutz   Atemschutz (Pressluftatmer, Masken, CSA)
+//   #/einsatz/<id>/nachschub    Nachschub (Kraftstoff, PSA, Schaummittel, Schläuche, Verpflegung, Ölbindemittel)
 //   #/bereitstellungsraeume     Bereitstellungsräume (vorbereitet, folgt)
 
 import { api, setzeBearbeiter, setzeEinsatz } from "./api.js";
@@ -18,6 +19,7 @@ import { oeffneBestand, zeigeAtemschutz } from "./atemschutz.js";
 import { oeffneAnzahl, oeffneVorrat } from "./bestaende.js";
 import { zeigeBoard } from "./board.js";
 import { renderDashboard } from "./dashboard.js";
+import { zeigeNachschub } from "./nachschub.js";
 import { icon } from "./symbole.js";
 import { zeigeFlaechenlage } from "./flaechenlage.js";
 import { oeffneLagebericht } from "./lagebericht.js";
@@ -29,7 +31,7 @@ import { zeigeBereitstellungsraeume, zeigeListe, zeigeNeuArt, zeigeNeuFormular, 
 import { datumZeit, dauer, dialog, dialogOffen, dialogSchliessen, esc, toast, zeitpunkt } from "./ui.js";
 
 const SICHERUNG_ERINNERN_TAGE = 7;
-const zustand = { daten: null, einsatzId: null, ansicht: null, board: null };
+const zustand = { daten: null, einsatzId: null, ansicht: null, board: null, bearbeiterFragen: null };
 const main = () => document.getElementById("inhalt");
 
 // ---- Bearbeiter (keine Anmeldung – nur Name/Kürzel fürs Protokoll) -------
@@ -72,6 +74,43 @@ function oeffneBearbeiter() {
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") ok(); });
 }
 
+// Wer bearbeitet den Einsatz? – direkt nach dem Eröffnen (Pflicht), später über die Einsatzleiste änderbar
+function einsatzBearbeiterDialog({ pflicht = false } = {}) {
+  const e = zustand.daten.einsatz;
+  let gespeichert = false;
+  const sheet = dialog({
+    titel: "Wer bearbeitet den Einsatz?",
+    sub: `${e.nummer} · ${e.stichwort}`,
+    koerper: `
+      <div class="meldung fehler" data-meldung hidden></div>
+      <div class="feldgruppe"><label for="eb-name">Name</label>
+        <input id="eb-name" maxlength="60" value="${esc(e.bearbeiter || bearbeiter)}" autocomplete="name" placeholder="Vor- und Nachname"></div>
+      <p class="text-3" style="margin:0">Der Name wird im Änderungsprotokoll und im Lagebericht vermerkt.</p>`,
+    fuss: `<span class="summe"></span>${pflicht ? "" : '<button class="knopf" type="button" data-schliessen>Abbrechen</button>'}
+      <button class="knopf knopf-primaer knopf-gross" type="button" data-ok>Übernehmen</button>`,
+    vorSchliessen: () => !pflicht || gespeichert,
+  });
+  if (pflicht) sheet.querySelector(".sheet-kopf [data-schliessen]")?.remove();
+  const input = sheet.querySelector("#eb-name");
+  const meldung = sheet.querySelector("[data-meldung]");
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+  const ok = async () => {
+    if (!input.value.trim()) { meldung.textContent = "Bitte einen Namen eintragen."; meldung.hidden = false; return; }
+    bearbeiter = input.value.trim();
+    speichereBearbeiter(bearbeiter);
+    setzeBearbeiter(bearbeiter);
+    try {
+      const d = await api.einsatzBearbeiter(bearbeiter);
+      gespeichert = true;
+      dialogSchliessen(true);
+      aktualisiert(d);
+      toast(`Einsatz wird bearbeitet von ${bearbeiter}.`);
+    } catch (err) { meldung.textContent = err.message; meldung.hidden = false; }
+  };
+  sheet.querySelector("[data-ok]").addEventListener("click", ok);
+  input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") ok(); });
+}
+
 // ---- Kopfbereich: nur FIRECOMMAND und „Letzte Aktualisierung“ --------------
 async function zeigeKopf() {
   const el = document.getElementById("aktualisiert");
@@ -105,6 +144,7 @@ function einsatzLeiste(d) {
           ${laufend ? `· <b class="laufend-text">laufend seit ${esc(dauer(e.beginn))}</b>` : `· beendet ${esc(datumZeit(e.ende))}`}</div>
       </div>
       <div class="el-aktionen">
+        ${laufend ? `<button class="knopf" type="button" data-aktion="bearbeiter" title="Bearbeiter ändern">Bearbeiter: ${esc(e.bearbeiter || "–")}</button>` : ""}
         <button class="knopf" type="button" data-aktion="protokoll">Protokoll</button>
         <button class="knopf knopf-primaer" type="button" data-aktion="lagebericht">Lagebericht erzeugen</button>
         ${laufend ? `<button class="knopf knopf-gefahr" type="button" data-aktion="beenden">Einsatz beenden</button>` : ""}
@@ -116,7 +156,7 @@ function einsatzLeiste(d) {
 // Zurück: Unterseiten der Ressourcen → Ressourcen → Einsatzübersicht → Start
 function zurueckZiel(e) {
   if (zustand.ansicht === "hub") return "#/";
-  if (["fahrzeuge", "abrollbehaelter", "atemschutz"].includes(zustand.ansicht)) return `#/einsatz/${e.id}/ressourcen`;
+  if (["fahrzeuge", "abrollbehaelter", "atemschutz", "nachschub"].includes(zustand.ansicht)) return `#/einsatz/${e.id}/ressourcen`;
   return `#/einsatz/${e.id}`;
 }
 
@@ -163,6 +203,8 @@ async function darstellen() {
     await zeigeObjektSeite(m, ctx, zustand.ansicht);
   } else if (zustand.ansicht === "atemschutz") {
     zeigeAtemschutz(m, ctx);
+  } else if (zustand.ansicht === "nachschub") {
+    zeigeNachschub(m, ctx);
   } else if (zustand.ansicht === "hub") {
     m.innerHTML = einsatzLeiste(d) + einsatzHub(d);
   } else if (d.einsatz.art === "flaeche") {
@@ -181,7 +223,13 @@ async function neuLaden() {
   if (zustand.einsatzId === null) return;
   try {
     zustand.daten = await api.uebersicht();
-    darstellen();
+    // Änderungen in diesem Einsatz werden dem Einsatz-Bearbeiter zugeordnet
+    if (zustand.daten.einsatz.bearbeiter) setzeBearbeiter(zustand.daten.einsatz.bearbeiter);
+    await darstellen();
+    if (zustand.bearbeiterFragen === zustand.einsatzId && zustand.daten.einsatz.status === "laufend" && !dialogOffen()) {
+      zustand.bearbeiterFragen = null;
+      einsatzBearbeiterDialog({ pflicht: true });
+    }
   } catch (e) {
     main().innerHTML = `<p class="meldung fehler">Der Einsatz konnte nicht geladen werden: ${esc(e.message)}</p>
       <p><a class="knopf" href="#/">Zur Startseite</a></p>`;
@@ -278,6 +326,7 @@ function schnellAendern(kat, status, delta) {
 
 const ctx = {
   daten: () => zustand.daten,
+  oeffneGruppe: (key) => oeffneGruppe(key),
   einsatzLeiste: () => einsatzLeiste(zustand.daten),
   aktualisiert, neuLaden, weiterGefuehrt, geschwister, oeffneKategorie,
   bindeErfassungsart: () => {},
@@ -286,6 +335,7 @@ const ctx = {
 
 // ---- Navigation ---------------------------------------------------------
 async function oeffneEinsatz(id) {
+  zustand.bearbeiterFragen = id;      // neu eröffnet: gleich nach dem Bearbeiter fragen
   location.hash = `#/einsatz/${id}`;
 }
 
@@ -295,6 +345,7 @@ async function navigieren() {
   zustand.einsatzId = null;
   zustand.daten = null;
   zustand.ansicht = null;
+  setzeBearbeiter(bearbeiter);
   if (zustand.board) { zustand.board.beenden(); zustand.board = null; }
   document.body.classList.remove("board-modus");
   setzeEinsatz(null);
@@ -303,7 +354,7 @@ async function navigieren() {
     if (teile[0] === "einsatz" && /^\d+$/.test(teile[1] || "")) {
       zustand.einsatzId = Number(teile[1]);
       zustand.ansicht = { ressourcen: "ressourcen", abschnitte: "abschnitte", fahrzeuge: "fahrzeuge",
-        abrollbehaelter: "abrollbehaelter", atemschutz: "atemschutz" }[teile[2]] || "hub";
+        abrollbehaelter: "abrollbehaelter", atemschutz: "atemschutz", nachschub: "nachschub" }[teile[2]] || "hub";
       setzeEinsatz(zustand.einsatzId);
       if (zustand.ansicht === "abschnitte") {
         zustand.daten = await api.uebersicht();
@@ -338,6 +389,7 @@ document.getElementById("inhalt").addEventListener("click", async (e) => {
   const aktion = e.target.closest("[data-aktion]");
   if (aktion) {
     if (aktion.dataset.aktion === "protokoll") return oeffneProtokoll(zustand.daten);
+    if (aktion.dataset.aktion === "bearbeiter") return einsatzBearbeiterDialog();
     if (aktion.dataset.aktion === "lagebericht") return oeffneLagebericht(ctx);
     if (aktion.dataset.aktion === "beenden") return oeffneBeenden();
   }

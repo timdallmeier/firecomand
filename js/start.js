@@ -39,7 +39,6 @@ export async function zeigeStart(main) {
       </a>
     </section>
     <section class="werkzeuge">
-      <button class="knopf" id="btn-bearbeiter" type="button">${esc(bearbeiterText())}</button>
       <button class="knopf" id="btn-sicherung" type="button">Sicherung</button>
     </section>
     ${laufend.length ? `
