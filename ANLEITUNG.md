@@ -1,4 +1,20 @@
-# FIRECOMMAND auf dem iPad – offline
+# FIRECOMMAND auf dem iPad – offline (Version 3)
+
+## Neu in Version 3
+
+* **Obere Leiste:** nur noch FIRECOMMAND und „Letzte Aktualisierung“. *Bearbeiter* und *Sicherung* stehen unten auf der Startseite.
+* **Liste aller Einsätze** (vorher „Liste alter Einsätze“) – mit **Löschen** je Einsatz und Sicherheitsabfrage.
+  Gelöscht werden Einsatzdaten, Zuordnungen, Einsatzabschnitte, Whiteboard und Protokoll des Einsatzes. Stammdaten bleiben.
+* **Kräfte und Einsatzmittel:** Kacheln in der Reihenfolge Fahrzeuge · Abrollbehälter · Atemschutz / Kraftstoff · PSA · Schaummittel /
+  Schläuche und Armaturen · Verpflegung.
+* **Fahrzeuge** (eigene Seite): Bezeichnung, Funkrufname, Stärke und Status 1–9 per Auswahlleiste.
+  Stärke = Anzahl Kräfte B IV / B III / B I, angezeigt als Stärkemeldung (z. B. 1/1/6/8) – antippen und mit − / + ändern.
+  Initialer Stammdatensatz: **HLF 20 · 1-HLF 20-1**.
+* **Abrollbehälter** (eigene Seite): Bezeichnung und Status 1, 2, 3, 4, 6. Initialer Stammdatensatz: **AB-GSG/Rüst**.
+* **Startwerte in jedem neuen Einsatz:** Status 2, Stärke 0/0/0/0 (Abrollbehälter: Status 2).
+* **Atemschutz** (eigene Seite): Pressluftatmer, Masken, CSA – je Liste mit Bezeichnung und Stückzahl.
+* **Stammdaten** sind nur Bezeichnung und Funkrufname. Stärke und Status werden je Einsatz gespeichert.
+  Beim Beenden eines Einsatzes wird der Stand festgeschrieben.
 
 ## Bedienung in Kürze (Version 2)
 
