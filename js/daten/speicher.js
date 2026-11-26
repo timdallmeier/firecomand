@@ -7,7 +7,8 @@
 // Jede Schreiboperation liest Stammdaten und Einsatz, ändert sie und schreibt
 // beides samt Protokolleinträgen in EINER Transaktion.
 
-import { leereStammdaten } from "./struktur.js";
+import { migriereV2zuV3 } from "./migration.js";
+import { SCHEMA_VERSION, leereStammdaten } from "./struktur.js";
 
 const DB_NAME = "firecommand";
 const DB_VERSION = 2;
@@ -30,12 +31,39 @@ function oeffnen() {
         p.createIndex("einsatz", "einsatz_id");
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => schemaAktualisieren(req.result).then(() => resolve(req.result), reject);
     req.onerror = () => reject(req.error);
     req.onblocked = () => reject(new Error("Datenspeicher ist blockiert. Bitte andere FIRECOMMAND-Fenster schließen."));
   });
   dbPromise.catch(() => { dbPromise = null; });
   return dbPromise;
+}
+
+/** Hebt gespeicherte Daten einmalig auf das aktuelle Schema – in EINER Transaktion. */
+function schemaAktualisieren(db) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(["stamm", "einsaetze", "protokoll"], "readwrite");
+    const done = fertig(tx);
+    const s = tx.objectStore("stamm").get("stamm");
+    s.onsuccess = () => {
+      const stamm = s.result;
+      if (!stamm || (stamm.schema || 2) >= SCHEMA_VERSION) return;
+      const e = tx.objectStore("einsaetze").getAll();
+      e.onsuccess = () => {
+        try {
+          const einsaetze = e.result;
+          const eintraege = migriereV2zuV3(stamm, einsaetze);
+          tx.objectStore("stamm").put(stamm, "stamm");
+          for (const x of einsaetze) tx.objectStore("einsaetze").put(x);
+          for (const x of eintraege) tx.objectStore("protokoll").add(x);
+        } catch (err) {
+          tx.abort();
+          reject(err);
+        }
+      };
+    };
+    done.then(resolve, reject);
+  });
 }
 
 function fertig(tx) {
