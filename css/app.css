@@ -611,3 +611,123 @@ body.board-modus .hinweisband { display: none; }
 .board-seite.zu { bottom: auto; }
 .board-seite.zu > :not(.bs-kopf) { display: none; }
 .board-seite.zu .bs-pfeil { transform: rotate(-90deg); }
+
+/* ===================== Version 3 ===================== */
+
+/* Obere Leiste: nur FIRECOMMAND und Letzte Aktualisierung */
+.kopf { flex-wrap: nowrap; gap: 16px; padding-bottom: 12px; }
+a.marke { text-decoration: none; color: var(--text); min-height: 44px; display: flex; align-items: center; margin-right: auto; }
+.aktualisiert { color: var(--text-2); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .aktualisiert { font-size: 12.5px; } }
+
+/* Startseite: Bearbeiter und Sicherung */
+.werkzeuge { display: flex; gap: 10px; flex-wrap: wrap; }
+.werkzeuge .knopf { min-height: var(--tap); }
+
+/* Liste aller Einsätze mit Löschen */
+.einsatz-eintrag { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
+.loeschen-knopf {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 76px;
+  border-radius: var(--radius); border: 1px solid rgba(224,85,63,.35); background: transparent; color: var(--krit);
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.loeschen-knopf:hover { background: rgba(224,85,63,.1); }
+
+/* Seitenkopf der Unterseiten */
+.seitenkopf { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.kachel-icon.gross { width: 52px; height: 52px; border-radius: 14px; }
+
+/* Schaltflächen-Kacheln (Fahrzeuge, Abrollbehälter, Atemschutz, Unterkacheln) */
+.knopfkachel {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 18px;
+  min-height: 150px; padding: 22px; border-radius: var(--radius); text-decoration: none; color: var(--text); text-align: left;
+  background: linear-gradient(160deg, #1b2028, #14181e); border: 1px solid var(--linie-stark); cursor: pointer; width: 100%;
+}
+.knopfkachel:hover { border-color: var(--text-3); }
+.kk-icon { width: 60px; height: 60px; border-radius: 16px; display: grid; place-items: center; background: var(--flaeche-3); }
+.kk-titel { font-size: 20px; font-weight: 680; display: flex; align-items: center; gap: 8px; }
+.kk-titel::after { content: "→"; color: var(--text-3); font-weight: 400; }
+.kk-text { color: var(--text-2); font-size: 14px; margin-top: -10px; }
+.knopfkacheln { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+/* Ressourcen: feste Reihenfolge in drei Spalten */
+.mittel-raster.v3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1024px) { .mittel-raster.v3, .knopfkacheln { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .mittel-raster.v3, .knopfkacheln { grid-template-columns: 1fr; } }
+
+/* Verpflegung als Kachel */
+.verpflegung-kachel { gap: 6px; }
+.vk-kopf, .vk-zeile { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); align-items: center; gap: 6px; }
+.vk-kopf { font-size: 11.5px; color: var(--text-3); padding: 0 10px; }
+.vk-kopf span { display: inline-flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.vk-kopf .dot { width: 6px; height: 6px; }
+.vk-zeile { min-height: 44px; padding: 6px 10px; border-radius: 10px; background: var(--flaeche-2); border: 1px solid var(--linie); text-align: left; cursor: pointer; width: 100%; }
+.vk-zeile:hover { border-color: var(--linie-stark); }
+.vk-name { font-weight: 600; font-size: 14px; }
+.vk-wert { text-align: right; font-size: 17px; font-weight: 650; }
+.vk-zeile.nicht-erfasst .vk-wert { color: var(--text-3); font-weight: 400; }
+
+/* Kompakte Listen: Fahrzeuge / Abrollbehälter */
+.liste-tabelle { display: grid; gap: 6px; }
+.lt-kopf, .lt-zeile { display: grid; align-items: center; gap: 12px; }
+.liste-tabelle.fzliste .lt-kopf, .liste-tabelle.fzliste .lt-zeile { grid-template-columns: minmax(130px, 1.3fr) minmax(110px, 1fr) 164px 416px; }
+.liste-tabelle.abliste .lt-kopf, .liste-tabelle.abliste .lt-zeile { grid-template-columns: minmax(180px, 1fr) 236px; }
+.lt-kopf { padding: 0 14px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.lt-zeile { padding: 8px 10px 8px 14px; border-radius: var(--radius-k); background: var(--flaeche); border: 1px solid var(--linie); min-height: 62px; }
+.lt-zeile.offen { border-style: dashed; }
+.lt-name { display: grid; gap: 2px; text-align: left; background: none; border: 0; padding: 4px 0; color: var(--text); cursor: pointer; }
+.lt-name b { font-size: 16px; }
+.lt-name:disabled { cursor: default; }
+.lt-zusatz { font-size: 12px; color: var(--text-3); }
+.lt-funk { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.auswahlleiste { display: inline-flex; gap: 3px; padding: 3px; border-radius: 11px; background: var(--bg); border: 1px solid var(--linie); }
+.auswahlleiste button {
+  min-width: 42px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2);
+  font-weight: 650; font-size: 15px; cursor: pointer; touch-action: manipulation; font-variant-numeric: tabular-nums;
+}
+.auswahlleiste button:hover:not(:disabled) { background: var(--flaeche-3); color: var(--text); }
+.auswahlleiste button[aria-pressed="true"] { background: #fff; color: #0c0e11; }
+.auswahlleiste button.st4[aria-pressed="true"] { background: var(--akzent); color: #fff; }
+.auswahlleiste button:disabled { cursor: default; opacity: .55; }
+.auswahlleiste button:disabled[aria-pressed="true"] { opacity: 1; }
+.staerke-leiste button { min-width: 48px; }
+@media (max-width: 1100px) {
+  .liste-tabelle.fzliste .lt-kopf { display: none; }
+  .liste-tabelle.fzliste .lt-zeile { grid-template-columns: 1fr auto; row-gap: 6px; }
+  .liste-tabelle.fzliste .lt-name { grid-column: 1; grid-row: 1; }
+  .liste-tabelle.fzliste .lt-funk { grid-column: 1; grid-row: 2; font-size: 13.5px; }
+  .liste-tabelle.fzliste .staerke-leiste { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .liste-tabelle.fzliste .status-leiste { grid-column: 1 / -1; grid-row: 3; display: flex; }
+  .liste-tabelle.fzliste .status-leiste button { flex: 1; }
+}
+@media (max-width: 560px) {
+  .auswahlleiste button { min-width: 34px; }
+  .liste-tabelle.abliste .lt-zeile { grid-template-columns: 1fr; }
+  .liste-tabelle.abliste .status-leiste { display: flex; } .liste-tabelle.abliste .status-leiste button { flex: 1; }
+}
+
+/* Atemschutz-Bestand */
+.positionen { display: grid; gap: 6px; }
+.position { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border-radius: var(--radius-k); background: var(--flaeche-2); border: 1px solid var(--linie); }
+.pos-name { flex: 1; text-align: left; background: none; border: 0; color: var(--text); font-weight: 600; font-size: 15.5px; padding: 10px 0; cursor: pointer; }
+.pos-neu { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; }
+.pos-neu input { min-height: var(--tap); border-radius: var(--radius-k); border: 1px solid var(--linie-stark); background: var(--bg); padding: 0 14px; font-size: 16px; }
+@media (max-width: 560px) { .pos-neu { grid-template-columns: 1fr 90px; } .pos-neu .knopf { grid-column: 1 / -1; } }
+
+/* Version 3.1: Stärke als Anzahl B IV / B III / B I */
+.liste-tabelle.fzliste .lt-kopf, .liste-tabelle.fzliste .lt-zeile { grid-template-columns: minmax(130px, 1.3fr) minmax(110px, 1fr) 150px 416px; }
+.staerke-knopf {
+  display: grid; justify-items: center; gap: 1px; min-height: 52px; padding: 4px 10px; border-radius: 11px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--linie-stark); color: var(--text);
+}
+.staerke-knopf:hover:not(:disabled) { border-color: var(--text-3); }
+.staerke-knopf:disabled { cursor: default; opacity: .8; }
+.sk-wert { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+.staerke-knopf.null .sk-wert { color: var(--text-3); }
+.sk-legende { font-size: 10px; color: var(--text-3); letter-spacing: .03em; }
+.stepper-wert.gross { min-width: 56px; font-size: 26px; }
+.staerke-summe b { font-size: 24px; }
+@media (max-width: 1100px) {
+  .liste-tabelle.fzliste .lt-zeile { grid-template-columns: 1fr auto; }
+  .liste-tabelle.fzliste .staerke-knopf { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+}
