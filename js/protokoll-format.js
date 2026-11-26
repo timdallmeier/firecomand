@@ -8,10 +8,10 @@ const AKTION = {
   geloescht: "aus Fahrzeugliste entfernt", status: "Status geändert", bestaetigt: "Bestand 0 bestätigt",
   wiederhergestellt: "Sicherung wiederhergestellt", beendet: "beendet", lagebericht: "Lagebericht erzeugt",
   abkommandiert: "abkommandiert", freigegeben: "freigegeben", zugeordnet: "zugeordnet",
-  zuordnung_aufgehoben: "Zuordnung aufgehoben", verworfen: "bei Umstellung entfernt (nicht übertragbar)",
+  zuordnung_aufgehoben: "Zuordnung aufgehoben", einsatz_geloescht: "Einsatz endgültig gelöscht", verworfen: "bei Umstellung entfernt (nicht übertragbar)",
 };
 const FELD = {
-  status: "Status", besatzung: "Besatzung",
+  status: "Status", besatzung: "Besatzung", staerke: "Stärke", funkrufname: "Funkrufname",
   kennung: "Kennung", bezeichnung: "Bezeichnung", status_key: "Status", standort: "Standort", bemerkungen: "Bemerkungen",
   nummer: "Nr.", art: "Art", stichwort: "Stichwort", ort: "Ort", bemerkung: "Bemerkung",
 };
@@ -44,7 +44,8 @@ export function protokollFormatierer(daten, { absolut = false } = {}) {
   function ziel(e) {
     const [art, key] = (e.ziel || "").split(":");
     if (art === "menge") return FELDWERT[key] || sName(e.bereich, key);
-    if (["objekt", "fahrzeug", "abschnitt", "symbol"].includes(art)) return key;
+    if (["objekt", "fahrzeug", "abschnitt", "symbol", "position", "einsatz"].includes(art)) return key;
+    if (art === "aufteilung") return "Aufteilung";
     if (art === "text") return "Textfeld";
     if (art === "linie") return "Linie";
     if (art === "verbindung") return "Verbindung";
@@ -61,7 +62,11 @@ export function protokollFormatierer(daten, { absolut = false } = {}) {
       const a = istJson(e.alter_wert) ? JSON.parse(e.alter_wert) : {};
       const n = istJson(e.neuer_wert) ? JSON.parse(e.neuer_wert) : {};
       aenderungen = [...new Set([...Object.keys(a), ...Object.keys(n)])].filter((f) => a[f] || n[f]).map((f) => {
-        const t = (v) => (v === undefined ? undefined : (f === "status_key" ? sName(e.bereich, v) : v) || "–");
+        const t = (v) => {
+          if (v === undefined) return undefined;
+          if (v && typeof v === "object" && "b4" in v) return `${v.b4}/${v.b3}/${v.b1}/${(v.b4 || 0) + (v.b3 || 0) + (v.b1 || 0)}`;
+          return (f === "status_key" ? sName(e.bereich, v) : v) ?? "–";
+        };
         return { feld: FELD[f] || f, alt: t(a[f]), neu: t(n[f]) };
       });
     } else {

@@ -1,7 +1,6 @@
 // Darstellung eines Einsatzes: Kräfte, Einsatzmittel, Versorgung
 // nurLesen = beendeter Einsatz: keine Bedienelemente zum Ändern
 
-import { FAHRZEUGSTATUS, STATUS_WHITEBOARD } from "./daten/struktur.js";
 import { icon } from "./symbole.js";
 import { dot, esc, farbe, zahl } from "./ui.js";
 
@@ -100,24 +99,6 @@ function balkenTeile(b, k) {
 const kopf = (g, rechts = "") => `
   <span class="kachel-kopf"><span class="kachel-icon">${icon(g.symbol)}</span><span class="name">${esc(g.name)}</span>${rechts}</span>`;
 
-// Fahrzeuge / Abrollbehälter: Anzahl, Besatzung, Verteilung auf Status 1–9
-function kachelEinzeln(b, g, k) {
-  const leer = k.anzahl_objekte === 0;
-  const verteilung = FAHRZEUGSTATUS.filter((s) => k.status_anzahl[s.wert])
-    .map((s) => `<span class="st-chip ${s.wert === STATUS_WHITEBOARD ? "st-4" : ""}"><b>${s.wert}</b>${zahl(k.status_anzahl[s.wert])}</span>`).join("");
-  return `
-    <button class="kachel" type="button" data-kategorie="${k.key}">
-      ${kopf(g, `<span class="badge">Liste</span>`)}
-      ${leer && k.erfassungsstand !== "vollstaendig"
-        ? `<span class="kachel-wert"><span class="wert zahl">—</span><span class="einheit">${esc(k.einheit)}</span></span>
-           <span class="unter">Liste noch leer</span><span class="erfassen">Hinzufügen</span>`
-        : `<span class="kachel-wert"><span class="wert zahl">${zahl(k.anzahl_objekte)}</span>
-             <span class="einheit">${esc(k.einheit)}${k.besatzung !== null ? ` · Besatzung <b class="zahl">${zahl(k.besatzung)}</b>` : ""}</span></span>
-           <span class="unter">${k.ohne_status ? `<span style="color:var(--warn)">${zahl(k.ohne_status)} ohne Status</span>` : "Status je Eintrag erfasst"}</span>
-           <span class="st-verteilung">${verteilung || '<span class="text-3">Noch kein Status vergeben</span>'}</span>`}
-    </button>`;
-}
-
 // Kraftstoff / Schaummittel: verfügbar = Gesamt − abkommandiert
 function vorratZeile(k, mitName) {
   const offen = k.erfassungsstand === "nicht_erfasst";
@@ -208,49 +189,48 @@ function kachelStatusGruppe(b, g, glieder) {
     </div>`;
 }
 
-function einsatzmittel(b) {
-  const erfasst = b.gruppen.filter((g) => g.erfassungsstand !== "nicht_erfasst").length;
+// Fahrzeuge, Abrollbehälter, Atemschutz: reine Schaltflächen, öffnen eigene Seiten
+function knopfKachel(g, einsatzId) {
+  const ziel = { fahrzeuge: "fahrzeuge", abrollbehaelter: "abrollbehaelter", atemschutz: "atemschutz" }[g.key];
+  return `
+    <a class="knopfkachel" href="#/einsatz/${einsatzId}/${ziel}">
+      <span class="kk-icon">${icon(g.symbol, 34)}</span>
+      <span class="kk-titel">${esc(g.name)}</span>
+    </a>`;
+}
+
+// Verpflegung als kompakte Kachel (je Art: Auf Wache / Alarmierbar / Angefordert)
+function kachelVerpflegung(vs) {
+  const g = vs.gruppen[0];
+  return `
+    <div class="kachel kachel-gruppe verpflegung-kachel">
+      ${kopf(g, '<span class="badge">Stück</span>')}
+      <div class="vk-kopf"><span></span>${vs.status.map((s) => `<span title="${esc(s.name)}">${dot(vs.key, s.key)}${esc(s.name.replace("Bereits ", ""))}</span>`).join("")}</div>
+      ${vs.kategorien.map((k) => `
+        <button class="vk-zeile ${k.erfassungsstand === "nicht_erfasst" ? "nicht-erfasst" : ""}" type="button" data-kategorie="${k.key}">
+          <span class="vk-name">${esc(k.name)}</span>
+          ${vs.status.map((s) => `<span class="vk-wert zahl">${zahl(k.mengen[s.key])}</span>`).join("")}
+        </button>`).join("")}
+    </div>`;
+}
+
+function einsatzmittel(b, vs, einsatzId) {
   const kacheln = b.gruppen.map((g) => {
     const glieder = b.kategorien.filter((k) => k.gruppe_key === g.key);
-    if (g.typ === "einzeln") return kachelEinzeln(b, g, glieder[0]);
+    if (["fahrzeuge", "abrollbehaelter", "atemschutz"].includes(g.key)) return knopfKachel(g, einsatzId);
     if (g.typ === "vorrat") return kachelVorrat(g, glieder);
     if (g.typ === "anzahl") return kachelAnzahl(g, glieder);
     return glieder.length === 1 ? kachelStatus(b, glieder[0], g) : kachelStatusGruppe(b, g, glieder);
-  }).join("");
+  }).join("") + kachelVerpflegung(vs);
   return `
     <section>
-      ${bereichKopf(b, `${erfasst} von ${b.gruppen.length} Kategorien erfasst`)}
-      ${leerHinweis(b)}
-      <div class="mittel-raster">${kacheln}</div>
-    </section>`;
-}
-
-// ---- Versorgung ----------------------------------------------------------
-function versorgung(b) {
-  const g = b.gruppen[0];
-  const zeilen = b.kategorien.map((k) => `
-    <button class="vt-zeile" type="button" data-kategorie="${k.key}">
-      <span class="vt-name">${esc(k.name)}<span class="vt-einheit">${esc(k.einheit)}${standText(k) ? ` · ${standText(k)}` : ""}</span></span>
-      ${b.status.map((s) => {
-        const v = k.mengen[s.key];
-        return `<span class="vt-wert zahl ${v === null ? "offen" : ""}">${zahl(v)}</span>`;
-      }).join("")}
-    </button>`).join("");
-  const erfasst = b.kategorien.filter((k) => k.erfassungsstand === "vollstaendig").length;
-  return `
-    <section>
-      ${bereichKopf(b, `${erfasst} von ${b.kategorien.length} Arten vollständig erfasst`)}
-      ${leerHinweis(b)}
-      <div class="kachel versorgung-tabelle">
-        ${kopf(g)}
-        <div class="vt-kopf"><span></span>${b.status.map((s) => `<span>${dot(b.key, s.key)}${esc(s.name)}</span>`).join("")}</div>
-        ${zeilen}
-      </div>
+      <div class="bereich-kopf"><h2>Einsatzmittel und Versorgung</h2></div>
+      <div class="mittel-raster v3">${kacheln}</div>
     </section>`;
 }
 
 export function renderDashboard(daten, optionen = {}) {
   nurLesen = !!optionen.nurLesen;
   const [kr, em, vs] = daten.bereiche;
-  return kraefte(kr) + einsatzmittel(em) + versorgung(vs);
+  return kraefte(kr) + einsatzmittel(em, vs, daten.einsatz.id);
 }

@@ -11,6 +11,8 @@ const ICONS = {
   schlauch: `<circle cx="11" cy="12" r="8"/><circle cx="11" cy="12" r="5"/><circle cx="11" cy="12" r="2"/>` + P("M19 12h3.5"),
   schaum: `<circle cx="8" cy="15" r="4.5"/><circle cx="16" cy="9" r="3.5"/><circle cx="16.5" cy="17" r="2.5"/><circle cx="7.5" cy="6.5" r="2"/>`,
   atemschutz: `<rect x="7.5" y="7" width="9" height="14" rx="4.5"/>` + P("M10 7V4.5h4V7M12 4.5V2.5M10.5 2.5h3"),
+  maske: P("M12 3.5c4.5 0 7.5 3 7.5 7.5 0 5-3.4 9.5-7.5 9.5S4.5 16 4.5 11c0-4.5 3-7.5 7.5-7.5Z") + P("M7.5 9.5c1.4-1 3-1.5 4.5-1.5s3.1.5 4.5 1.5") + `<circle cx="12" cy="16" r="2.2"/>` + P("M4.5 11H2.5M19.5 11h2"),
+  csa: P("M9 3.5h6l1 2.5h2.5l2 6-2.5 1-1.5-3V21H7.5V10l-1.5 3-2.5-1 2-6H8Z") + `<circle cx="12" cy="7" r="1.6"/>` + P("M10 14h4"),
   psa: P("M3 16.5h18") + P("M4.5 16.5c0-5 3.3-9 7.5-9s7.5 4 7.5 9") + P("M12 7.5v4M9 8.5l1 3.5M15 8.5l-1 3.5") + P("M2.5 19h19"),
   verpflegung: P("M4 7h11v6.5A4.5 4.5 0 0 1 10.5 18h-2A4.5 4.5 0 0 1 4 13.5V7Z") + P("M15 9h1.5a2.5 2.5 0 0 1 0 5H15") + P("M3 21h14") + P("M7.5 2.5c-.8 1 .8 2 0 3M11.5 2.5c-.8 1 .8 2 0 3"),
   abschnitte: `<rect x="2.5" y="3" width="7" height="5" rx=".8"/><rect x="14.5" y="3" width="7" height="5" rx=".8"/><rect x="8.5" y="16" width="7" height="5" rx=".8"/>` + P("M6 8v3.5h12V8M12 11.5V16"),
@@ -19,6 +21,7 @@ const ICONS = {
   einsatz: P("M12 3v4M12 17v4M3 12h4M17 12h4") + `<circle cx="12" cy="12" r="5"/>`,
   liste: P("M8 6h13M8 12h13M8 18h13") + `<circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>`,
   plus: P("M12 5v14M5 12h14"),
+  muell: P("M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"),
 };
 
 export function icon(name, groesse = 24) {

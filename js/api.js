@@ -66,7 +66,20 @@ export const api = {
     const r = svc.einsatzAnlegen(stamm, daten, bearbeiter, optionen);
     return { eintraege: r.eintraege, neuerEinsatz: r.einsatz, ergebnis: svc.einsatzKurz(r.einsatz) };
   })),
-  einsatzBeenden: () => imEinsatz((stamm, e) => svc.einsatzBeenden(e, bearbeiter)),
+  einsatzBeenden: () => imEinsatz((stamm, e) => svc.einsatzBeenden(stamm, e, bearbeiter)),
+  // Löscht den Einsatz mit allen zugehörigen Daten (Stand, Whiteboard, Zuordnungen, Protokoll)
+  einsatzLoeschen: (id) => ausfuehren(async () => {
+    const { einsatz } = await speicher.lesen(id);
+    if (!einsatz) throw new svc.NichtGefunden("Einsatz existiert nicht (mehr).");
+    await speicher.einsatzLoeschen(id, { einsatz_id: null, zeitpunkt: svc.jetzt(), bereich: "system", kategorie_key: "system",
+      ziel: `einsatz:${einsatz.nummer}`, aktion: "einsatz_geloescht", alter_wert: `${einsatz.nummer} · ${einsatz.stichwort}`,
+      neuer_wert: null, benutzer: bearbeiter, quelle: "manuell" });
+    return { nummer: einsatz.nummer };
+  }),
+  letzteAenderung: () => ausfuehren(async () => {
+    const liste = await speicher.einsaetzeLesen();
+    return liste.map((e) => e.letzte_aenderung).filter(Boolean).sort().pop() || null;
+  }),
 
   // ---- im aktuellen Einsatz ----
   uebersicht: () => ausfuehren(async () => { const { stamm, einsatz } = await lesenEinsatz(); return svc.uebersicht(stamm, einsatz); }),
@@ -82,7 +95,18 @@ export const api = {
   objektAnlegen: (daten) => objektAktion((s, e) => svc.objektAnlegen(s, e, daten, bearbeiter)),
   objektAendern: (id, daten) => objektAktion((s, e) => svc.objektAendern(s, e, id, daten, bearbeiter)),
   objektStatus: (id, status) => objektAktion((s, e) => svc.objektStatusSetzen(s, e, id, status, bearbeiter)),
-  objektBesatzung: (id, aenderung) => objektAktion((s, e) => svc.objektBesatzung(s, e, id, aenderung, bearbeiter)),
+  objektStaerke: (id, aenderung) => ausfuehren(async () => {
+    await speicher.schreiben(einsatzId, ({ stamm, einsatz }) => {
+      if (!einsatz) throw new svc.NichtGefunden("Einsatz existiert nicht.");
+      return { eintraege: svc.objektStaerkeSetzen(stamm, einsatz, id, aenderung, bearbeiter) };
+    });
+    const { stamm, einsatz } = await lesenEinsatz();
+    return svc.objekte(stamm, einsatz).find((o) => o.id === id);
+  }),
+  positionen: (kat) => ausfuehren(async () => { const { einsatz } = await lesenEinsatz(); return svc.positionenLesen(einsatz, kat); }),
+  positionAnlegen: (kat, daten) => imEinsatz((s, e) => svc.positionAnlegen(e, kat, daten, bearbeiter)),
+  positionAendern: (kat, id, daten) => imEinsatz((s, e) => svc.positionAendern(e, kat, id, daten, bearbeiter)),
+  positionLoeschen: (kat, id) => imEinsatz((s, e) => svc.positionLoeschen(e, kat, id, bearbeiter)),
 
   // ---- Einsatzabschnitte (Whiteboard) ----
   boardDaten: () => ausfuehren(async () => { const { stamm, einsatz } = await lesenEinsatz(); return svc.boardDaten(stamm, einsatz); }),

@@ -9,7 +9,7 @@
 // Bedienung: Touch (ein Finger = verschieben, zwei Finger = Ansicht zoomen/verschieben) und Maus.
 
 import { api } from "./api.js";
-import { ABSCHNITTSARTEN, LINIENFARBEN, LINIENSTILE, SYMBOLE, fahrzeugstatusText } from "./daten/struktur.js";
+import { ABSCHNITTSARTEN, LINIENFARBEN, LINIENSTILE, SYMBOLE, fahrzeugstatusText, staerkeText } from "./daten/struktur.js";
 import { SYMBOL_B, SYMBOL_H, icon, zeichen, zeichenInhalt } from "./symbole.js";
 import { dialog, dialogSchliessen, esc, toast, zahl } from "./ui.js";
 
@@ -197,13 +197,14 @@ export async function zeigeBoard(main, { daten, nurLesen, neuLaden }) {
     const h = abHoehe(a);
     const gewaehlt = auswahl?.art === "abschnitt" && auswahl.id === a.id;
     const start = verbindenStart?.art === "abschnitt" && verbindenStart.id === a.id;
-    const besatzung = fz.reduce((s, f) => s + (f.besatzung || 0), 0);
+    const summe = { b4: 0, b3: 0, b1: 0 };
+    for (const f of fz) for (const k of ["b4", "b3", "b1"]) summe[k] += f.staerke?.[k] || 0;
     const chips = fz.length ? fz.map((f, i) => `
       <g class="fz-chip" data-fz="${f.id}" transform="translate(12 ${AB_KOPF + i * FZ_HOEHE})">
         <rect width="${AB_BREITE - 24}" height="${FZ_HOEHE - 6}" rx="7" fill="#232a34" stroke="#3a4452"/>
         <rect x="8" y="9" width="14" height="14" rx="3" fill="none" stroke="#ef5a43" stroke-width="2"/>
         <text x="32" y="${(FZ_HOEHE - 6) / 2}" dominant-baseline="central" fill="#e8ebef" font-size="15" font-weight="600">${esc(f.bezeichnung)}</text>
-        ${f.besatzung !== null ? `<text x="${AB_BREITE - 36}" y="${(FZ_HOEHE - 6) / 2}" text-anchor="end" dominant-baseline="central" fill="#a9b1bd" font-size="13">${zahl(f.besatzung)} Pers.</text>` : ""}
+        <text x="${AB_BREITE - 36}" y="${(FZ_HOEHE - 6) / 2}" text-anchor="end" dominant-baseline="central" fill="#a9b1bd" font-size="13" font-weight="600">${staerkeText(f.staerke)}</text>
       </g>`).join("")
       : `<text x="${AB_BREITE / 2}" y="${AB_KOPF + 16}" text-anchor="middle" dominant-baseline="central" fill="#6f7886" font-size="13">${nurLesen ? "Keine Fahrzeuge" : "Fahrzeuge hierher ziehen"}</text>`;
     return `<g data-el="abschnitt:${a.id}" transform="translate(${a.x} ${a.y})" class="el">
@@ -213,7 +214,7 @@ export async function zeigeBoard(main, { daten, nurLesen, neuLaden }) {
       ${art?.kuerzel ? `<rect x="12" y="14" width="${art.kuerzel.length * 9 + 14}" height="22" rx="5" fill="none" stroke="#ef5a43" stroke-width="1.6"/>
         <text x="${19 + art.kuerzel.length * 4.5}" y="25" text-anchor="middle" dominant-baseline="central" fill="#ef5a43" font-size="12" font-weight="700">${esc(art.kuerzel)}</text>` : ""}
       <text x="${art?.kuerzel ? 32 + art.kuerzel.length * 9 : 14}" y="25" dominant-baseline="central" fill="#ffffff" font-size="17" font-weight="700">${esc(a.name)}</text>
-      <text x="${AB_BREITE - 12}" y="${AB_KOPF - 14}" text-anchor="end" dominant-baseline="central" fill="#8a93a2" font-size="11.5">${zahl(fz.length)} Fzg${besatzung ? ` · ${zahl(besatzung)} Pers.` : ""}</text>
+      <text x="${AB_BREITE - 12}" y="${AB_KOPF - 14}" text-anchor="end" dominant-baseline="central" fill="#8a93a2" font-size="11.5">${zahl(fz.length)} Fzg · Stärke ${staerkeText(summe)}</text>
       ${chips}
     </g>`;
   }
@@ -256,7 +257,7 @@ export async function zeigeBoard(main, { daten, nurLesen, neuLaden }) {
       ${frei.length ? `<div class="bs-liste">${frei.map((f) => `
         <div class="bs-fz" data-fz="${f.id}" ${nurLesen ? "" : 'title="In einen Abschnitt ziehen"'}>
           <span class="bs-marke"></span><span class="bs-name">${esc(f.bezeichnung)}</span>
-          ${f.besatzung !== null ? `<span class="bs-pers">${zahl(f.besatzung)}</span>` : ""}
+          <span class="bs-pers">${staerkeText(f.staerke)}</span>
         </div>`).join("")}</div>`
       : `<p class="bs-leer">${bd.fahrzeuge.length ? "Alle Fahrzeuge sind zugeordnet." : `Fahrzeuge mit ${esc(fahrzeugstatusText(bd.status_whiteboard, true))} erscheinen hier automatisch.<br>Status setzen unter „Kräfte und Einsatzmittel“ → Fahrzeuge.`}</p>`}
       ${!nurLesen && bd.fahrzeuge.length ? `<p class="bs-tipp">Fahrzeug in einen Abschnitt ziehen. Zum Herausnehmen aus dem Abschnitt hierher oder auf eine freie Fläche ziehen.</p>` : ""}`;
@@ -651,7 +652,7 @@ export async function zeigeBoard(main, { daten, nurLesen, neuLaden }) {
       const hier = f.abschnitt_id === a.id;
       const woanders = f.abschnitt_id !== null && !hier ? bd.board.abschnitte.find((x) => x.id === f.abschnitt_id)?.name : null;
       return `<div class="zuordnung-zeile">
-        <span><b>${esc(f.bezeichnung)}</b>${f.besatzung !== null ? ` · ${zahl(f.besatzung)} Pers.` : ""}
+        <span><b>${esc(f.bezeichnung)}</b> · ${staerkeText(f.staerke)}
           <span class="text-3">${hier ? " · in diesem Abschnitt" : woanders ? ` · in ${esc(woanders)}` : " · nicht zugeordnet"}</span></span>
         <button class="knopf ${hier ? "" : "knopf-primaer"}" type="button" data-fz-zu="${f.id}" data-ziel="${hier ? "" : a.id}">${hier ? "Herausnehmen" : woanders ? "Hierher verschieben" : "Zuordnen"}</button>
       </div>`;

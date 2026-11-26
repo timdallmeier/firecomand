@@ -2,7 +2,7 @@
 // Enthält nur erfasste Werte – nichts wird ergänzt oder geschätzt.
 
 import { api } from "./api.js";
-import { ABSCHNITTSARTEN, SYMBOLE } from "./daten/struktur.js";
+import { ABSCHNITTSARTEN, SYMBOLE, staerkeText } from "./daten/struktur.js";
 import { PdfDokument } from "./pdf.js";
 import { aenderungenText, protokollFormatierer } from "./protokoll-format.js";
 import { datumZeit, dauer, dialog, esc, toast } from "./ui.js";
@@ -158,21 +158,19 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
   if (!objekte.length) {
     r.absatz("Keine Fahrzeuge oder Abrollbehälter in der Liste.", { farbe: FARBE.grau });
   } else {
-    const fzBesatzung = objekte.filter((o) => o.kategorie_key === "fahrzeuge").reduce((s2, o) => s2 + (o.besatzung || 0), 0);
+    const fzSumme = { b4: 0, b3: 0, b1: 0 };
+    for (const o of objekte) for (const k of ["b4", "b3", "b1"]) fzSumme[k] += o.staerke?.[k] || 0;
     r.tabelle(
-      [{ titel: "Bezeichnung", anteil: 1.7 }, { titel: "Art", anteil: 0.8 }, { titel: "Besatzung", anteil: 0.9, rechts: true },
-        { titel: "Status", anteil: 0.8, rechts: true }, { titel: "Einsatzabschnitt", anteil: 1.4 }, { titel: "Standort / Bemerkungen", anteil: 2.2 }],
-      [
-        ...objekte.map((o) => ({
-          zellen: [o.bezeichnung, o.kategorie_key === "fahrzeuge" ? "Fahrzeug" : "AB",
-            o.kategorie_key === "fahrzeuge" ? nz(o.besatzung) : "", o.status === null ? "—" : String(o.status),
-            o.abschnitt_id ? abschnittName(o.abschnitt_id) : "", [o.standort, o.bemerkungen].filter(Boolean).join(" · ")],
-          farben: [, , , o.status === null ? FARBE.hell : FARBE.text],
-        })),
-        { zellen: ["Summe Besatzung Fahrzeuge", "", nz(fzBesatzung), "", "", ""], fett: true },
-      ],
+      [{ titel: "Bezeichnung", anteil: 1.5 }, { titel: "Funkrufname", anteil: 1.3 }, { titel: "Art", anteil: 0.6 }, { titel: "Stärke", anteil: 0.9 },
+        { titel: "Status", anteil: 0.7, rechts: true }, { titel: "Einsatzabschnitt", anteil: 1.3 }, { titel: "Standort / Bemerkungen", anteil: 1.8 }],
+      objekte.map((o) => ({
+        zellen: [o.bezeichnung, o.funkrufname || "", o.kategorie_key === "fahrzeuge" ? "Fahrzeug" : "AB",
+          o.kategorie_key === "fahrzeuge" ? staerkeText(o.staerke) : "", o.status === null ? "—" : String(o.status),
+          o.abschnitt_id ? abschnittName(o.abschnitt_id) : "", [o.standort, o.bemerkungen].filter(Boolean).join(" · ")],
+        farben: [, , , , o.status === null ? FARBE.hell : FARBE.text],
+      })).concat([{ zellen: ["Summe Fahrzeuge", "", "", staerkeText(fzSumme), "", "", ""], fett: true }]),
     );
-    r.absatz("Status 1–9 als Ziffer, „—“ = kein Status vergeben.", { groesse: 8.5, farbe: FARBE.grau });
+    r.absatz("Stärke: B IV / B III / B I / Gesamt. Status 1–9 als Ziffer, „—“ = kein Status vergeben.", { groesse: 8.5, farbe: FARBE.grau });
   }
 
   // 3. Einsatzabschnitte
@@ -182,11 +180,13 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
   if (!abschnitte.length) r.absatz("Keine Einsatzabschnitte angelegt.", { farbe: FARBE.grau });
   else {
     r.tabelle(
-      [{ titel: "Einsatzabschnitt", anteil: 1.8 }, { titel: "Art", anteil: 1.4 }, { titel: "Zugeordnete Fahrzeuge (Status 4)", anteil: 3.2 }, { titel: "Besatzung", anteil: 0.9, rechts: true }],
+      [{ titel: "Einsatzabschnitt", anteil: 1.7 }, { titel: "Art", anteil: 1.3 }, { titel: "Zugeordnete Fahrzeuge (Status 4)", anteil: 3.4 }, { titel: "Stärke", anteil: 1 }],
       abschnitte.map((a) => {
         const fz = board.fahrzeuge.filter((f) => f.abschnitt_id === a.id);
-        return { zellen: [a.name, ABSCHNITTSARTEN.find((x) => x.key === a.art)?.name || "", fz.map((f) => f.bezeichnung).join(", ") || "—",
-          nz(fz.reduce((s2, f) => s2 + (f.besatzung || 0), 0))] };
+        const sm = { b4: 0, b3: 0, b1: 0 };
+        for (const f of fz) for (const k of ["b4", "b3", "b1"]) sm[k] += f.staerke?.[k] || 0;
+        return { zellen: [a.name, ABSCHNITTSARTEN.find((x) => x.key === a.art)?.name || "",
+          fz.map((f) => `${f.bezeichnung} (${staerkeText(f.staerke)})`).join(", ") || "—", staerkeText(sm)] };
       }),
     );
   }
@@ -210,9 +210,15 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
     [{ titel: "Schläuche und Armaturen", anteil: 2 }, { titel: "Art", anteil: 2 }, { titel: "Bestand (Stück)", anteil: 1.2, rechts: true }],
     anzahl.map((k) => ({ zellen: [k.untergruppe, k.name, nz(k.gesamt)] })),
   );
+  // Atemschutz: Positionen mit Stückzahl
+  const atem = em.kategorien.filter((k) => k.typ === "positionen");
+  const atemZeilen = atem.flatMap((k) => (k.positionen.length
+    ? k.positionen.map((p, i) => ({ zellen: [i === 0 ? k.name : "", p.bezeichnung, nz(p.stueck)] }))
+    : [{ zellen: [k.name, "nicht erfasst", "—"], farben: [, FARBE.hell] }]));
+  r.tabelle([{ titel: "Atemschutz", anteil: 1.4 }, { titel: "Bezeichnung", anteil: 2.6 }, { titel: "Stück", anteil: 1, rechts: true }], atemZeilen);
   const statusKat = em.kategorien.filter((k) => k.typ === "status");
   r.tabelle(
-    [{ titel: "Atemschutz / PSA", anteil: 2 }, { titel: "Einheit", anteil: 0.8 },
+    [{ titel: "PSA", anteil: 2 }, { titel: "Einheit", anteil: 0.8 },
       ...em.status.map((s2) => ({ titel: s2.name, anteil: 1.15, rechts: true })), { titel: "Gesamt", anteil: 0.9, rechts: true }],
     statusKat.map((k) => ({ zellen: [k.name, k.einheit, ...em.status.map((s2) => nz(k.mengen[s2.key])), nz(k.gesamt)],
       farben: [, , k.verfuegbar === 0 ? FARBE.rot : null] })),

@@ -8,9 +8,13 @@
 //   #/einsatz/<id>              Einsatz: Übersicht mit drei Kacheln
 //   #/einsatz/<id>/ressourcen   Kräfte und Einsatzmittel (beendet = nur Ansicht)
 //   #/einsatz/<id>/abschnitte   Einsatzabschnitte (Whiteboard)
+//   #/einsatz/<id>/fahrzeuge    Fahrzeugübersicht
+//   #/einsatz/<id>/abrollbehaelter  Abrollbehälterübersicht
+//   #/einsatz/<id>/atemschutz   Atemschutz (Pressluftatmer, Masken, CSA)
 //   #/bereitstellungsraeume     Bereitstellungsräume (vorbereitet, folgt)
 
 import { api, setzeBearbeiter, setzeEinsatz } from "./api.js";
+import { oeffneBestand, zeigeAtemschutz } from "./atemschutz.js";
 import { oeffneAnzahl, oeffneVorrat } from "./bestaende.js";
 import { zeigeBoard } from "./board.js";
 import { renderDashboard } from "./dashboard.js";
@@ -18,7 +22,7 @@ import { icon } from "./symbole.js";
 import { zeigeFlaechenlage } from "./flaechenlage.js";
 import { oeffneLagebericht } from "./lagebericht.js";
 import { oeffneMengen } from "./mengen.js";
-import { oeffneObjekte } from "./objekte.js";
+import { zeigeObjektSeite } from "./objekte.js";
 import { oeffneProtokoll } from "./protokoll.js";
 import { oeffneSicherung } from "./sicherung-ui.js";
 import { zeigeBereitstellungsraeume, zeigeListe, zeigeNeuArt, zeigeNeuFormular, zeigeStart } from "./start.js";
@@ -40,7 +44,8 @@ let bearbeiter = ladeBearbeiter();
 setzeBearbeiter(bearbeiter);
 
 function zeigeBearbeiter() {
-  document.getElementById("btn-bearbeiter").textContent = bearbeiter ? `Bearbeiter: ${bearbeiter}` : "Bearbeiter festlegen";
+  const b = document.getElementById("btn-bearbeiter");
+  if (b) b.textContent = bearbeiter ? `Bearbeiter: ${bearbeiter}` : "Bearbeiter festlegen";
 }
 
 function oeffneBearbeiter() {
@@ -67,25 +72,13 @@ function oeffneBearbeiter() {
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") ok(); });
 }
 
-// ---- Kopfbereich ---------------------------------------------------------
-function setzeSystemstatus(ok, text) {
-  const el = document.getElementById("systemstatus");
-  el.dataset.zustand = ok ? "bereit" : "fehler";
-  el.querySelector(".text").textContent = text;
-}
-
-function zeigeKopf() {
-  const offline = navigator.serviceWorker?.controller ? "Offline bereit" : "Bereit";
-  const d = zustand.daten;
-  if (d && zustand.einsatzId !== null) {
-    const e = d.erfassung;
-    setzeSystemstatus(true, e.gruppen_vollstaendig === e.gruppen_gesamt
-      ? `${offline} · alles erfasst` : `${offline} · ${e.gruppen_vollstaendig}/${e.gruppen_gesamt} vollständig erfasst`);
-    document.getElementById("aktualisiert").textContent = `Letzte Aktualisierung: ${zeitpunkt(d.letzte_aktualisierung)}`;
-  } else {
-    setzeSystemstatus(true, `${offline} · Daten auf diesem Gerät`);
-    document.getElementById("aktualisiert").textContent = "";
-  }
+// ---- Kopfbereich: nur FIRECOMMAND und „Letzte Aktualisierung“ --------------
+async function zeigeKopf() {
+  const el = document.getElementById("aktualisiert");
+  let zeit = null;
+  if (zustand.daten && zustand.einsatzId !== null) zeit = zustand.daten.letzte_aktualisierung;
+  else zeit = await api.letzteAenderung().catch(() => null);
+  el.textContent = `Letzte Aktualisierung: ${zeit ? zeitpunkt(zeit) : "—"}`;
 }
 
 // Erinnerung an die Sicherung, sobald Daten vorhanden sind
@@ -105,7 +98,7 @@ function einsatzLeiste(d) {
   const laufend = e.status === "laufend";
   return `
     <div class="einsatzleiste ${laufend ? "laufend" : "beendet"}">
-      <a class="zurueck" href="${zustand.ansicht === "hub" ? "#/" : `#/einsatz/${e.id}`}" aria-label="${zustand.ansicht === "hub" ? "Zur Startseite" : "Zur Einsatzübersicht"}">←</a>
+      <a class="zurueck" href="${zurueckZiel(e)}" aria-label="Zurück">←</a>
       <div class="el-info">
         <div class="el-titel"><span class="zahl">${esc(e.nummer)}</span> · ${esc(e.stichwort)}</div>
         <div class="el-sub">${esc(e.ort)} · ${esc(e.art_name)} · Beginn ${esc(datumZeit(e.beginn))}
@@ -118,6 +111,13 @@ function einsatzLeiste(d) {
       </div>
     </div>
     ${laufend ? "" : `<p class="meldung info nurlesen">Dieser Einsatz ist beendet. Die Daten sind nur noch zur Ansicht – Lagebericht und Protokoll stehen weiter zur Verfügung.</p>`}`;
+}
+
+// Zurück: Unterseiten der Ressourcen → Ressourcen → Einsatzübersicht → Start
+function zurueckZiel(e) {
+  if (zustand.ansicht === "hub") return "#/";
+  if (["fahrzeuge", "abrollbehaelter", "atemschutz"].includes(zustand.ansicht)) return `#/einsatz/${e.id}/ressourcen`;
+  return `#/einsatz/${e.id}`;
 }
 
 function nurLesen() { return zustand.daten?.einsatz.status !== "laufend"; }
@@ -149,7 +149,7 @@ function einsatzHub(d) {
     </section>`;
 }
 
-function darstellen() {
+async function darstellen() {
   const d = zustand.daten;
   if (!d) return;
   const m = main();
@@ -159,7 +159,11 @@ function darstellen() {
     return;
   }
   const scroll = window.scrollY;
-  if (zustand.ansicht === "hub") {
+  if (zustand.ansicht === "fahrzeuge" || zustand.ansicht === "abrollbehaelter") {
+    await zeigeObjektSeite(m, ctx, zustand.ansicht);
+  } else if (zustand.ansicht === "atemschutz") {
+    zeigeAtemschutz(m, ctx);
+  } else if (zustand.ansicht === "hub") {
     m.innerHTML = einsatzLeiste(d) + einsatzHub(d);
   } else if (d.einsatz.art === "flaeche") {
     m.innerHTML = einsatzLeiste(d);
@@ -179,7 +183,6 @@ async function neuLaden() {
     zustand.daten = await api.uebersicht();
     darstellen();
   } catch (e) {
-    setzeSystemstatus(false, "Speicherfehler");
     main().innerHTML = `<p class="meldung fehler">Der Einsatz konnte nicht geladen werden: ${esc(e.message)}</p>
       <p><a class="knopf" href="#/">Zur Startseite</a></p>`;
   }
@@ -207,7 +210,8 @@ function oeffneKategorie(katKey, optionen = {}) {
     optionen = { ...optionen, gefuehrt: t.bereich.kategorien.slice(i + 1)
       .some((k) => k.erfassungsstand === "nicht_erfasst" && !(t.kat.typ === "anzahl" && k.gruppe_key === t.kat.gruppe_key)) };
   }
-  if (t.kat.typ === "einzeln") oeffneObjekte(ctx, t.bereich, t.kat, optionen);
+  if (t.kat.typ === "einzeln") location.hash = `#/einsatz/${zustand.einsatzId}/${t.kat.key}`;
+  else if (t.kat.typ === "positionen") oeffneBestand(ctx, t.kat);
   else if (t.kat.typ === "vorrat") oeffneVorrat(ctx, t.bereich, t.kat, optionen);
   else if (t.kat.typ === "anzahl") oeffneAnzahl(ctx, t.bereich, t.bereich.gruppen.find((g) => g.key === t.kat.gruppe_key), optionen);
   else oeffneMengen(ctx, t.bereich, t.kat, optionen);
@@ -274,6 +278,7 @@ function schnellAendern(kat, status, delta) {
 
 const ctx = {
   daten: () => zustand.daten,
+  einsatzLeiste: () => einsatzLeiste(zustand.daten),
   aktualisiert, neuLaden, weiterGefuehrt, geschwister, oeffneKategorie,
   bindeErfassungsart: () => {},
   kategorie: (key) => finde(key).kat,
@@ -297,7 +302,8 @@ async function navigieren() {
   try {
     if (teile[0] === "einsatz" && /^\d+$/.test(teile[1] || "")) {
       zustand.einsatzId = Number(teile[1]);
-      zustand.ansicht = { ressourcen: "ressourcen", abschnitte: "abschnitte" }[teile[2]] || "hub";
+      zustand.ansicht = { ressourcen: "ressourcen", abschnitte: "abschnitte", fahrzeuge: "fahrzeuge",
+        abrollbehaelter: "abrollbehaelter", atemschutz: "atemschutz" }[teile[2]] || "hub";
       setzeEinsatz(zustand.einsatzId);
       if (zustand.ansicht === "abschnitte") {
         zustand.daten = await api.uebersicht();
@@ -315,7 +321,7 @@ async function navigieren() {
     if (teile[0] === "bereitstellungsraeume") await zeigeBereitstellungsraeume(main());
     else if (teile[0] === "neu" && teile[1]) await zeigeNeuFormular(main(), teile[1], { oeffneEinsatz });
     else if (teile[0] === "neu") zeigeNeuArt(main());
-    else if (teile[0] === "einsaetze") await zeigeListe(main());
+    else if (teile[0] === "einsaetze") await zeigeListe(main(), { neuZeigen: zeigeKopf });
     else {
       const einsaetze = await zeigeStart(main());
       zeigeSicherungsHinweis(einsaetze.length > 0);
@@ -323,7 +329,6 @@ async function navigieren() {
     zeigeKopf();
   } catch (e) {
     console.error(e);
-    setzeSystemstatus(false, "Speicherfehler");
     main().innerHTML = `<p class="meldung fehler">Die Daten auf diesem Gerät konnten nicht gelesen werden: ${esc(e.message)}</p>`;
   }
 }
@@ -357,17 +362,21 @@ document.getElementById("inhalt").addEventListener("click", async (e) => {
   const kachel = e.target.closest("[data-kategorie]");
   if (kachel) oeffneKategorie(kachel.dataset.kategorie);
 });
-document.getElementById("btn-bearbeiter").addEventListener("click", oeffneBearbeiter);
-document.getElementById("btn-sicherung").addEventListener("click", () => oeffneSicherung({ neuLaden: async () => { await neuLaden(); }, nachImport: () => navigieren() }));
+// Bearbeiter und Sicherung (auf der Startseite)
+document.getElementById("inhalt").addEventListener("click", (e) => {
+  if (e.target.closest("#btn-bearbeiter")) oeffneBearbeiter();
+  if (e.target.closest("#btn-sicherung")) oeffneSicherung({ neuLaden: async () => { await neuLaden(); }, nachImport: () => navigieren() });
+});
 document.getElementById("hinweisband").addEventListener("click", (e) => {
   if (e.target.closest("[data-sichern]")) oeffneSicherung({ neuLaden: async () => { await neuLaden(); }, nachImport: () => navigieren() });
 });
-document.querySelector(".marke").addEventListener("click", () => { location.hash = "#/"; });
 window.addEventListener("hashchange", navigieren);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && !dialogOffen() && zustand.einsatzId !== null && zustand.ansicht !== "abschnitte") neuLaden();
 });
-document.addEventListener("dialog-geschlossen", () => { if (zustand.daten && zustand.ansicht !== "abschnitte") darstellen(); });
+document.addEventListener("dialog-geschlossen", () => {
+  if (zustand.daten && !["abschnitte", "fahrzeuge", "abrollbehaelter", "atemschutz"].includes(zustand.ansicht)) darstellen();
+});
 
 // Offline-Fähigkeit: Programmdateien auf dem Gerät vorhalten
 if ("serviceWorker" in navigator) {

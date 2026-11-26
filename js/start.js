@@ -4,9 +4,15 @@ import { api } from "./api.js";
 import { EINSATZARTEN } from "./daten/struktur.js";
 import { BEREITSTELLUNGSRAUM_STATUS } from "./daten/struktur.js";
 import { icon } from "./symbole.js";
-import { datumZeit, dauer, esc, toast, zahl } from "./ui.js";
+import { datumZeit, dauer, dialog, dialogSchliessen, esc, toast, zahl } from "./ui.js";
 
 // ---- Startseite --------------------------------------------------------------
+function bearbeiterText() {
+  let b = "";
+  try { b = localStorage.getItem("firecommand.bearbeiter") || ""; } catch { /* egal */ }
+  return b ? `Bearbeiter: ${b}` : "Bearbeiter festlegen";
+}
+
 export async function zeigeStart(main) {
   const einsaetze = await api.einsaetze();
   const laufend = einsaetze.filter((e) => e.status === "laufend");
@@ -20,7 +26,7 @@ export async function zeigeStart(main) {
       </a>
       <a class="startkachel" href="#/einsaetze">
         <span class="startkachel-symbol" aria-hidden="true">${icon("liste", 26)}</span>
-        <span class="startkachel-titel">Liste alter Einsätze</span>
+        <span class="startkachel-titel">Liste aller Einsätze</span>
         <span class="startkachel-text">${einsaetze.length
           ? `${zahl(einsaetze.length)} ${einsaetze.length === 1 ? "Einsatz" : "Einsätze"}${laufend.length ? ` · <b class="laufend-text">${zahl(laufend.length)} laufend</b>` : ""}`
           : "Noch keine Einsätze"}</span>
@@ -31,6 +37,10 @@ export async function zeigeStart(main) {
         <span class="startkachel-titel">Bereitstellungsräume</span>
         <span class="startkachel-text">${info.bereitstellungsraeume.length ? `${zahl(info.bereitstellungsraeume.length)} hinterlegt` : "Folgt – Liste wird ergänzt"}</span>
       </a>
+    </section>
+    <section class="werkzeuge">
+      <button class="knopf" id="btn-bearbeiter" type="button">${esc(bearbeiterText())}</button>
+      <button class="knopf" id="btn-sicherung" type="button">Sicherung</button>
     </section>
     ${laufend.length ? `
     <section class="schnellzugriff">
@@ -54,16 +64,55 @@ function einsatzKarte(e) {
     </a>`;
 }
 
-// ---- Einsatzliste ---------------------------------------------------------
-export async function zeigeListe(main) {
+// ---- Liste aller Einsätze -------------------------------------------------
+export async function zeigeListe(main, { neuZeigen } = {}) {
   const einsaetze = await api.einsaetze();
   main.innerHTML = `
     <nav class="pfad"><a href="#/">← Start</a></nav>
-    <div class="bereich-kopf"><h2>Einsätze</h2><span class="meta">${zahl(einsaetze.length)} gesamt</span>
+    <div class="bereich-kopf"><h2>Liste aller Einsätze</h2><span class="meta">${zahl(einsaetze.length)} gesamt</span>
       <a class="knopf knopf-hell" href="#/neu" style="margin-left:auto">${icon("plus", 18)} Neuen Einsatz eröffnen</a></div>
     ${einsaetze.length
-      ? `<div class="einsatz-liste">${einsaetze.map(einsatzKarte).join("")}</div>`
+      ? `<div class="einsatz-liste">${einsaetze.map((e) => `
+          <div class="einsatz-eintrag">
+            ${einsatzKarte(e)}
+            <button class="loeschen-knopf" type="button" data-loeschen="${e.id}" aria-label="Einsatz ${esc(e.nummer)} löschen" title="Einsatz löschen">
+              ${icon("muell", 20)}<span>Löschen</span></button>
+          </div>`).join("")}</div>`
       : `<div class="leer"><p>Noch keine Einsätze angelegt.</p></div>`}`;
+
+  main.querySelectorAll("[data-loeschen]").forEach((b) => b.addEventListener("click", () => {
+    const e = einsaetze.find((x) => x.id === Number(b.dataset.loeschen));
+    loeschenAbfrage(e, async () => { await zeigeListe(main, { neuZeigen }); neuZeigen?.(); });
+  }));
+}
+
+// Sicherheitsabfrage – gelöscht wird erst nach ausdrücklicher Bestätigung
+function loeschenAbfrage(e, danach) {
+  const sheet = dialog({
+    titel: "Einsatz endgültig löschen?",
+    sub: `${e.nummer} · ${e.stichwort} · ${e.ort}`,
+    koerper: `
+      <div class="meldung fehler" style="margin:0">Wenn du diesen Einsatz löschst, werden sämtliche zugehörigen Einsatzdaten,
+        Ressourcen-Zuordnungen, Einsatzabschnitte, Whiteboard-Elemente und weiteren gespeicherten Informationen unwiderruflich entfernt.</div>
+      ${e.status === "laufend" ? '<p class="meldung info" style="margin:0">Achtung: Dieser Einsatz läuft noch.</p>' : ""}
+      <p class="text-2" style="margin:0">Fahrzeuge und Abrollbehälter in den Stammdaten bleiben erhalten.
+        Tipp: Vorher einen Lagebericht erzeugen oder eine Sicherung anlegen, falls du die Daten noch brauchst.</p>`,
+    fuss: `<span class="summe"></span>
+      <button class="knopf knopf-gross" type="button" data-schliessen>Abbrechen</button>
+      <button class="knopf knopf-gefahr bestaetigen knopf-gross" type="button" data-endgueltig>Einsatz endgültig löschen</button>`,
+  });
+  sheet.querySelector("[data-endgueltig]").addEventListener("click", async (ev) => {
+    ev.currentTarget.disabled = true;
+    try {
+      await api.einsatzLoeschen(e.id);
+      dialogSchliessen(true);
+      toast(`Einsatz ${e.nummer} wurde endgültig gelöscht.`);
+      await danach();
+    } catch (err) {
+      toast(err.message, "fehler");
+      ev.currentTarget.disabled = false;
+    }
+  });
 }
 
 // ---- Neuer Einsatz: Schritt 1 – Art wählen ---------------------------------
