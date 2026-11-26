@@ -7,12 +7,17 @@ const AKTION = {
   erfasst: "erfasst", geaendert: "geändert", umgebucht: "umgebucht", angelegt: "angelegt",
   geloescht: "aus Fahrzeugliste entfernt", status: "Status geändert", bestaetigt: "Bestand 0 bestätigt",
   wiederhergestellt: "Sicherung wiederhergestellt", beendet: "beendet", lagebericht: "Lagebericht erzeugt",
+  abkommandiert: "abkommandiert", freigegeben: "freigegeben", zugeordnet: "zugeordnet",
+  zuordnung_aufgehoben: "Zuordnung aufgehoben", verworfen: "bei Umstellung entfernt (nicht übertragbar)",
 };
 const FELD = {
+  status: "Status", besatzung: "Besatzung",
   kennung: "Kennung", bezeichnung: "Bezeichnung", status_key: "Status", standort: "Standort", bemerkungen: "Bemerkungen",
   nummer: "Nr.", art: "Art", stichwort: "Stichwort", ort: "Ort", bemerkung: "Bemerkung",
 };
-const SONDER = { system: "System", einsatz: "Einsatz" };
+const SONDER = { system: "System", einsatz: "Einsatz", einsatzabschnitte: "Einsatzabschnitte",
+  kraefte: "Kräfte (alt)", kraftstoff: "Kraftstoff (alt)", schlaeuche: "Schläuche und Armaturen (alt)", verpflegung: "Verpflegung (alt)" };
+const FELDWERT = { gesamt: "Gesamtbestand", abkommandiert: "Abkommandiert", bestand: "Bestand" };
 
 /** Liefert eine Funktion, die einen Eintrag in { was, aktion, aenderungen[], wer, zeit } übersetzt. */
 export function protokollFormatierer(daten, { absolut = false } = {}) {
@@ -38,8 +43,11 @@ export function protokollFormatierer(daten, { absolut = false } = {}) {
 
   function ziel(e) {
     const [art, key] = (e.ziel || "").split(":");
-    if (art === "menge") return sName(e.bereich, key);
-    if (art === "objekt") return key;
+    if (art === "menge") return FELDWERT[key] || sName(e.bereich, key);
+    if (["objekt", "fahrzeug", "abschnitt", "symbol"].includes(art)) return key;
+    if (art === "text") return "Textfeld";
+    if (art === "linie") return "Linie";
+    if (art === "verbindung") return "Verbindung";
     return "";
   }
 

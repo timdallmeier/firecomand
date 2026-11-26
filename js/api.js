@@ -60,7 +60,7 @@ export const api = {
   stammInfo: () => ausfuehren(async () => {
     const { stamm } = await speicher.lesen();
     return { standarddatensatz_vorhanden: !!stamm.standarddatensatz, letzte_sicherung: stamm.letzte_sicherung,
-      fahrzeuge: stamm.objekte.filter((o) => o.aktiv).length };
+      fahrzeuge: stamm.objekte.filter((o) => o.aktiv).length, bereitstellungsraeume: stamm.bereitstellungsraeume || [] };
   }),
   einsatzAnlegen: (daten, optionen) => ausfuehren(() => speicher.schreiben(null, ({ stamm }) => {
     const r = svc.einsatzAnlegen(stamm, daten, bearbeiter, optionen);
@@ -72,6 +72,8 @@ export const api = {
   uebersicht: () => ausfuehren(async () => { const { stamm, einsatz } = await lesenEinsatz(); return svc.uebersicht(stamm, einsatz); }),
   bestandSetzen: (kat, aenderungen) => imEinsatz((s, e) => svc.bestandSetzen(e, kat, aenderungen, bearbeiter)),
   mengeAendern: (kat, status, delta) => imEinsatz((s, e) => svc.mengeAendern(e, kat, status, delta, bearbeiter)),
+  bestaendeSetzen: (paket) => imEinsatz((s, e) => svc.bestaendeUebernehmen(e, paket, bearbeiter)),
+  abkommandieren: (kat, menge, richtung) => imEinsatz((s, e) => svc.abkommandieren(e, kat, menge, richtung, bearbeiter)),
   kraefteNull: () => imEinsatz((s, e) => svc.kraefteNullBestaetigen(e, bearbeiter)),
   umbuchen: (kat, von, nach, anzahl) => imEinsatz((s, e) => svc.umbuchen(e, kat, von, nach, anzahl, bearbeiter)),
   erfassungsart: () => Promise.reject(new ApiFehler("Die Erfassungsart ist fest vorgegeben.", 400)),
@@ -80,6 +82,18 @@ export const api = {
   objektAnlegen: (daten) => objektAktion((s, e) => svc.objektAnlegen(s, e, daten, bearbeiter)),
   objektAendern: (id, daten) => objektAktion((s, e) => svc.objektAendern(s, e, id, daten, bearbeiter)),
   objektStatus: (id, status) => objektAktion((s, e) => svc.objektStatusSetzen(s, e, id, status, bearbeiter)),
+  objektBesatzung: (id, aenderung) => objektAktion((s, e) => svc.objektBesatzung(s, e, id, aenderung, bearbeiter)),
+
+  // ---- Einsatzabschnitte (Whiteboard) ----
+  boardDaten: () => ausfuehren(async () => { const { stamm, einsatz } = await lesenEinsatz(); return svc.boardDaten(stamm, einsatz); }),
+  board: (aktion) => ausfuehren(async () => {
+    await speicher.schreiben(einsatzId, ({ stamm, einsatz }) => {
+      if (!einsatz) throw new svc.NichtGefunden("Einsatz existiert nicht.");
+      return { eintraege: svc.boardAktion(stamm, einsatz, aktion, bearbeiter) };
+    });
+    const { stamm, einsatz } = await lesenEinsatz();
+    return svc.boardDaten(stamm, einsatz);
+  }),
   objektLoeschen: (id, version) => objektAktion((s, e) => svc.objektAusmustern(s, e, id, version, bearbeiter)),
   protokoll: (limit = 300) => ausfuehren(() => speicher.protokollLesen(einsatzId, limit)),
 
@@ -89,6 +103,7 @@ export const api = {
     return {
       uebersicht: svc.uebersicht(stamm, einsatz),
       objekte: svc.objekte(stamm, einsatz),
+      board: svc.boardDaten(stamm, einsatz),
       protokoll: await speicher.protokollLesen(einsatzId),
       bearbeiter,
     };

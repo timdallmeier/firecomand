@@ -5,21 +5,27 @@
 //   #/neu              Neuer Einsatz: Art wählen
 //   #/neu/gebunden     Neuer Einsatz: Angaben + Startbestand
 //   #/einsaetze        Liste aller Einsätze
-//   #/einsatz/<id>     Einsatz: Ressourcenübersicht (beendet = nur Ansicht)
+//   #/einsatz/<id>              Einsatz: Übersicht mit drei Kacheln
+//   #/einsatz/<id>/ressourcen   Kräfte und Einsatzmittel (beendet = nur Ansicht)
+//   #/einsatz/<id>/abschnitte   Einsatzabschnitte (Whiteboard)
+//   #/bereitstellungsraeume     Bereitstellungsräume (vorbereitet, folgt)
 
 import { api, setzeBearbeiter, setzeEinsatz } from "./api.js";
+import { oeffneAnzahl, oeffneVorrat } from "./bestaende.js";
+import { zeigeBoard } from "./board.js";
 import { renderDashboard } from "./dashboard.js";
+import { icon } from "./symbole.js";
 import { zeigeFlaechenlage } from "./flaechenlage.js";
 import { oeffneLagebericht } from "./lagebericht.js";
 import { oeffneMengen } from "./mengen.js";
 import { oeffneObjekte } from "./objekte.js";
 import { oeffneProtokoll } from "./protokoll.js";
 import { oeffneSicherung } from "./sicherung-ui.js";
-import { zeigeListe, zeigeNeuArt, zeigeNeuFormular, zeigeStart } from "./start.js";
+import { zeigeBereitstellungsraeume, zeigeListe, zeigeNeuArt, zeigeNeuFormular, zeigeStart } from "./start.js";
 import { datumZeit, dauer, dialog, dialogOffen, dialogSchliessen, esc, toast, zeitpunkt } from "./ui.js";
 
 const SICHERUNG_ERINNERN_TAGE = 7;
-const zustand = { daten: null, einsatzId: null };
+const zustand = { daten: null, einsatzId: null, ansicht: null, board: null };
 const main = () => document.getElementById("inhalt");
 
 // ---- Bearbeiter (keine Anmeldung – nur Name/Kürzel fürs Protokoll) -------
@@ -99,7 +105,7 @@ function einsatzLeiste(d) {
   const laufend = e.status === "laufend";
   return `
     <div class="einsatzleiste ${laufend ? "laufend" : "beendet"}">
-      <a class="zurueck" href="#/" aria-label="Zur Startseite">←</a>
+      <a class="zurueck" href="${zustand.ansicht === "hub" ? "#/" : `#/einsatz/${e.id}`}" aria-label="${zustand.ansicht === "hub" ? "Zur Startseite" : "Zur Einsatzübersicht"}">←</a>
       <div class="el-info">
         <div class="el-titel"><span class="zahl">${esc(e.nummer)}</span> · ${esc(e.stichwort)}</div>
         <div class="el-sub">${esc(e.ort)} · ${esc(e.art_name)} · Beginn ${esc(datumZeit(e.beginn))}
@@ -116,12 +122,46 @@ function einsatzLeiste(d) {
 
 function nurLesen() { return zustand.daten?.einsatz.status !== "laufend"; }
 
+// Einsatzübersicht: drei Kacheln
+function einsatzHub(d) {
+  const e = d.einsatz;
+  const ab = d.abschnitte;
+  const kr = d.bereiche[0].gruppen[0];
+  return `
+    <section class="hub">
+      <a class="hubkachel" href="#/einsatz/${e.id}/ressourcen">
+        <span class="hub-icon">${icon("fahrzeug", 30)}</span>
+        <span class="hub-titel">Kräfte und Einsatzmittel</span>
+        <span class="hub-text">${kr.gesamt === null ? "Kräfte noch nicht erfasst" : `Stärke ${d.bereiche[0].kategorien.map((k) => k.gesamt ?? "—").join(" / ")} / ${kr.gesamt}`}
+          · ${d.erfassung.gruppen_vollstaendig}/${d.erfassung.gruppen_gesamt} Bereiche vollständig</span>
+      </a>
+      <a class="hubkachel" href="#/einsatz/${e.id}/abschnitte">
+        <span class="hub-icon">${icon("abschnitte", 30)}</span>
+        <span class="hub-titel">Einsatzabschnitte</span>
+        <span class="hub-text">${ab.anzahl ? `${ab.anzahl} ${ab.anzahl === 1 ? "Abschnitt" : "Abschnitte"} · ${ab.zugeordnet} Fahrzeuge zugeordnet` : "Einsatzstellenstruktur auf dem Whiteboard aufbauen"}</span>
+      </a>
+      <div class="hubkachel gesperrt" aria-disabled="true">
+        <span class="badge folgt">folgt</span>
+        <span class="hub-icon">${icon("lagebild", 30)}</span>
+        <span class="hub-titel">Lagebild</span>
+        <span class="hub-text">Folgt – wird in einer späteren Version ergänzt</span>
+      </div>
+    </section>`;
+}
+
 function darstellen() {
   const d = zustand.daten;
   if (!d) return;
   const m = main();
+  if (zustand.ansicht === "abschnitte") {
+    if (zustand.board) zustand.board.aktualisieren();
+    zeigeKopf();
+    return;
+  }
   const scroll = window.scrollY;
-  if (d.einsatz.art === "flaeche") {
+  if (zustand.ansicht === "hub") {
+    m.innerHTML = einsatzLeiste(d) + einsatzHub(d);
+  } else if (d.einsatz.art === "flaeche") {
     m.innerHTML = einsatzLeiste(d);
     const platz = document.createElement("div");
     m.appendChild(platz);
@@ -164,16 +204,21 @@ function oeffneKategorie(katKey, optionen = {}) {
   if (!t) return;
   if (optionen.gefuehrt) {
     const i = t.bereich.kategorien.indexOf(t.kat);
-    optionen = { ...optionen, gefuehrt: t.bereich.kategorien.slice(i + 1).some((k) => k.erfassungsstand === "nicht_erfasst") };
+    optionen = { ...optionen, gefuehrt: t.bereich.kategorien.slice(i + 1)
+      .some((k) => k.erfassungsstand === "nicht_erfasst" && !(t.kat.typ === "anzahl" && k.gruppe_key === t.kat.gruppe_key)) };
   }
-  if (t.kat.erfassungsart === "einzeln") oeffneObjekte(ctx, t.bereich, t.kat, optionen);
+  if (t.kat.typ === "einzeln") oeffneObjekte(ctx, t.bereich, t.kat, optionen);
+  else if (t.kat.typ === "vorrat") oeffneVorrat(ctx, t.bereich, t.kat, optionen);
+  else if (t.kat.typ === "anzahl") oeffneAnzahl(ctx, t.bereich, t.bereich.gruppen.find((g) => g.key === t.kat.gruppe_key), optionen);
   else oeffneMengen(ctx, t.bereich, t.kat, optionen);
 }
 
 function weiterGefuehrt(bereichKey, nachKatKey) {
   const b = zustand.daten.bereiche.find((x) => x.key === bereichKey);
   const start = b.kategorien.findIndex((k) => k.key === nachKatKey);
-  const naechste = b.kategorien.slice(start + 1).find((k) => k.erfassungsstand === "nicht_erfasst");
+  const aktuell = b.kategorien[start];
+  const naechste = b.kategorien.slice(start + 1)
+    .find((k) => k.erfassungsstand === "nicht_erfasst" && !(aktuell?.typ === "anzahl" && k.gruppe_key === aktuell.gruppe_key));
   if (naechste) oeffneKategorie(naechste.key, { gefuehrt: true });
   else toast(`${b.name}: Erfassung abgeschlossen.`);
 }
@@ -191,6 +236,7 @@ function oeffneGruppe(gruppeKey) {
     const g = b.gruppen.find((x) => x.key === gruppeKey);
     if (!g) continue;
     const glieder = b.kategorien.filter((k) => k.gruppe_key === g.key);
+    if (g.typ === "anzahl") return nurLesen() ? toast("Der Einsatz ist beendet – nur Ansicht.") : oeffneAnzahl(ctx, b, g);
     return oeffneKategorie((glieder.find((k) => k.erfassungsstand !== "vollstaendig") || glieder[0]).key);
   }
 }
@@ -243,17 +289,31 @@ async function navigieren() {
   const teile = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   zustand.einsatzId = null;
   zustand.daten = null;
+  zustand.ansicht = null;
+  if (zustand.board) { zustand.board.beenden(); zustand.board = null; }
+  document.body.classList.remove("board-modus");
   setzeEinsatz(null);
   window.scrollTo(0, 0);
   try {
     if (teile[0] === "einsatz" && /^\d+$/.test(teile[1] || "")) {
       zustand.einsatzId = Number(teile[1]);
+      zustand.ansicht = { ressourcen: "ressourcen", abschnitte: "abschnitte" }[teile[2]] || "hub";
       setzeEinsatz(zustand.einsatzId);
+      if (zustand.ansicht === "abschnitte") {
+        zustand.daten = await api.uebersicht();
+        document.body.classList.add("board-modus");
+        zustand.board = await zeigeBoard(main(), { daten: zustand.daten, nurLesen: nurLesen(), neuLaden: async () => {
+          zustand.daten = await api.uebersicht(); zeigeKopf();
+        } });
+        zeigeKopf();
+        return;
+      }
       await neuLaden();
       zeigeSicherungsHinweis(true);
       return;
     }
-    if (teile[0] === "neu" && teile[1]) await zeigeNeuFormular(main(), teile[1], { oeffneEinsatz });
+    if (teile[0] === "bereitstellungsraeume") await zeigeBereitstellungsraeume(main());
+    else if (teile[0] === "neu" && teile[1]) await zeigeNeuFormular(main(), teile[1], { oeffneEinsatz });
     else if (teile[0] === "neu") zeigeNeuArt(main());
     else if (teile[0] === "einsaetze") await zeigeListe(main());
     else {
@@ -304,13 +364,25 @@ document.getElementById("hinweisband").addEventListener("click", (e) => {
 });
 document.querySelector(".marke").addEventListener("click", () => { location.hash = "#/"; });
 window.addEventListener("hashchange", navigieren);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && !dialogOffen() && zustand.einsatzId !== null) neuLaden(); });
-document.addEventListener("dialog-geschlossen", () => { if (zustand.daten) darstellen(); });
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !dialogOffen() && zustand.einsatzId !== null && zustand.ansicht !== "abschnitte") neuLaden();
+});
+document.addEventListener("dialog-geschlossen", () => { if (zustand.daten && zustand.ansicht !== "abschnitte") darstellen(); });
 
 // Offline-Fähigkeit: Programmdateien auf dem Gerät vorhalten
 if ("serviceWorker" in navigator) {
+  // Neue Version: Sobald sie bereitsteht, wird sie geladen (nicht während eine Eingabe offen ist).
+  let hatteVersion = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register("sw.js").catch((e) => console.warn("Offline-Modus nicht verfügbar:", e));
-  navigator.serviceWorker.addEventListener("controllerchange", () => zeigeKopf());
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hatteVersion) {
+      if (!dialogOffen()) location.reload();
+      else toast("Neue Version geladen – sie ist nach dem Schließen dieses Fensters aktiv.");
+      document.addEventListener("dialog-geschlossen", () => location.reload(), { once: true });
+    }
+    hatteVersion = true;
+    zeigeKopf();
+  });
 }
 api.dauerhaftAnfordern();
 

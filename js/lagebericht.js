@@ -2,6 +2,7 @@
 // Enthält nur erfasste Werte – nichts wird ergänzt oder geschätzt.
 
 import { api } from "./api.js";
+import { ABSCHNITTSARTEN, SYMBOLE } from "./daten/struktur.js";
 import { PdfDokument } from "./pdf.js";
 import { aenderungenText, protokollFormatierer } from "./protokoll-format.js";
 import { datumZeit, dauer, dialog, esc, toast } from "./ui.js";
@@ -101,7 +102,7 @@ class Bericht {
 }
 
 // ---- Inhalt ----------------------------------------------------------------
-export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbeiter }) {
+export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbeiter, board }) {
   const e = d.einsatz;
   const jetzt = new Date().toISOString();
   const [kr, em, vs] = d.bereiche;
@@ -151,46 +152,81 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
     ],
   );
 
-  // 2. Einsatzmittel
-  r.abschnitt("2. Einsatzmittel");
-  r.tabelle(
-    [{ titel: "Einsatzmittel", anteil: 2.2 }, { titel: "Einheit", anteil: 0.9 },
-      ...em.status.map((s) => ({ titel: s.name, anteil: 1.15, rechts: true })), { titel: "Gesamt", anteil: 0.9, rechts: true }],
-    em.kategorien.map((k) => {
-      const grp = em.gruppen.find((x) => x.key === k.gruppe_key);
-      const name = grp?.key === "kraftstoff" ? `${grp.name} ${k.name}` : k.name;
-      const farben = [];
-      if (k.verfuegbar === 0) farben[2] = FARBE.rot;
-      return { zellen: [name, k.einheit, ...em.status.map((s) => nz(k.mengen[s.key])), nz(k.gesamt)], farben };
-    }),
-  );
-
-  // 3. Fahrzeuge und Abrollbehälter
-  r.abschnitt("3. Fahrzeuge und Abrollbehälter");
-  const statusName = Object.fromEntries(em.status.map((s) => [s.key, s.name]));
+  // 2. Fahrzeuge und Abrollbehälter
+  const abschnittName = (id) => board.board.abschnitte.find((a) => a.id === id)?.name || "";
+  r.abschnitt("2. Fahrzeuge und Abrollbehälter");
   if (!objekte.length) {
-    r.absatz("Keine Fahrzeuge oder Abrollbehälter in der Fahrzeugliste.", { farbe: FARBE.grau });
+    r.absatz("Keine Fahrzeuge oder Abrollbehälter in der Liste.", { farbe: FARBE.grau });
   } else {
+    const fzBesatzung = objekte.filter((o) => o.kategorie_key === "fahrzeuge").reduce((s2, o) => s2 + (o.besatzung || 0), 0);
     r.tabelle(
-      [{ titel: "Kennung", anteil: 1.1 }, { titel: "Bezeichnung", anteil: 1.6 }, { titel: "Art", anteil: 0.9 },
-        { titel: "Status", anteil: 1.2 }, { titel: "Standort", anteil: 1.3 }, { titel: "Bemerkungen", anteil: 2 }],
-      objekte.map((o) => ({
-        zellen: [o.kennung, o.bezeichnung, o.kategorie_key === "fahrzeuge" ? "Fahrzeug" : "AB",
-          o.status_key ? statusName[o.status_key] : "nicht erfasst", o.standort, o.bemerkungen],
-        farben: [, , , o.status_key === "defekt" ? FARBE.rot : o.status_key ? FARBE.text : FARBE.hell],
-      })),
+      [{ titel: "Bezeichnung", anteil: 1.7 }, { titel: "Art", anteil: 0.8 }, { titel: "Besatzung", anteil: 0.9, rechts: true },
+        { titel: "Status", anteil: 0.8, rechts: true }, { titel: "Einsatzabschnitt", anteil: 1.4 }, { titel: "Standort / Bemerkungen", anteil: 2.2 }],
+      [
+        ...objekte.map((o) => ({
+          zellen: [o.bezeichnung, o.kategorie_key === "fahrzeuge" ? "Fahrzeug" : "AB",
+            o.kategorie_key === "fahrzeuge" ? nz(o.besatzung) : "", o.status === null ? "—" : String(o.status),
+            o.abschnitt_id ? abschnittName(o.abschnitt_id) : "", [o.standort, o.bemerkungen].filter(Boolean).join(" · ")],
+          farben: [, , , o.status === null ? FARBE.hell : FARBE.text],
+        })),
+        { zellen: ["Summe Besatzung Fahrzeuge", "", nz(fzBesatzung), "", "", ""], fett: true },
+      ],
     );
+    r.absatz("Status 1–9 als Ziffer, „—“ = kein Status vergeben.", { groesse: 8.5, farbe: FARBE.grau });
   }
 
-  // 4. Versorgung
-  r.abschnitt("4. Versorgung");
+  // 3. Einsatzabschnitte
+  r.abschnitt("3. Einsatzabschnitte");
+  const abschnitte = board.board.abschnitte;
+  const freieStatus4 = board.fahrzeuge.filter((f) => f.abschnitt_id === null);
+  if (!abschnitte.length) r.absatz("Keine Einsatzabschnitte angelegt.", { farbe: FARBE.grau });
+  else {
+    r.tabelle(
+      [{ titel: "Einsatzabschnitt", anteil: 1.8 }, { titel: "Art", anteil: 1.4 }, { titel: "Zugeordnete Fahrzeuge (Status 4)", anteil: 3.2 }, { titel: "Besatzung", anteil: 0.9, rechts: true }],
+      abschnitte.map((a) => {
+        const fz = board.fahrzeuge.filter((f) => f.abschnitt_id === a.id);
+        return { zellen: [a.name, ABSCHNITTSARTEN.find((x) => x.key === a.art)?.name || "", fz.map((f) => f.bezeichnung).join(", ") || "—",
+          nz(fz.reduce((s2, f) => s2 + (f.besatzung || 0), 0))] };
+      }),
+    );
+  }
+  if (freieStatus4.length) r.absatz(`Status 4, keinem Abschnitt zugeordnet: ${freieStatus4.map((f) => f.bezeichnung).join(", ")}.`);
+  const texte = board.board.texte.map((t) => t.text.replace(/\n/g, " · "));
+  const symbole = board.board.symbole.map((sy) => `${SYMBOLE.find((x) => x.key === sy.symbol)?.name}${sy.label ? ` „${sy.label}“` : ""}`);
+  if (texte.length) { r.y += 4; r.absatz(`Notizen: ${texte.join(" | ")}`, { groesse: 9 }); }
+  if (symbole.length) { r.y += 2; r.absatz(`Taktische Zeichen: ${symbole.join(", ")}`, { groesse: 9 }); }
+
+  // 4. Einsatzmittel
+  r.abschnitt("4. Einsatzmittel");
+  const vorrat = em.kategorien.filter((k) => k.typ === "vorrat");
   r.tabelle(
-    [{ titel: "Versorgung", anteil: 2 }, { titel: "Einheit", anteil: 1 }, ...vs.status.map((s) => ({ titel: s.name, anteil: 1.4, rechts: true })),
-      { titel: "Gesamt", anteil: 1, rechts: true }],
-    vs.kategorien.map((k) => ({ zellen: [k.name, k.einheit, ...vs.status.map((s) => nz(k.mengen[s.key])), nz(k.gesamt)] })),
+    [{ titel: "Kraftstoff / Schaummittel", anteil: 2.2 }, { titel: "Einheit", anteil: 0.8 }, { titel: "Gesamtbestand", anteil: 1.2, rechts: true },
+      { titel: "Abkommandiert", anteil: 1.2, rechts: true }, { titel: "Verfügbar", anteil: 1.1, rechts: true }],
+    vorrat.map((k) => ({ zellen: [k.gruppe_key === "kraftstoff" ? `Kraftstoff ${k.name}` : k.name, k.einheit, nz(k.gesamt), nz(k.abkommandiert), nz(k.verfuegbar)],
+      farben: [, , , , k.verfuegbar === 0 ? FARBE.rot : null] })),
+  );
+  const anzahl = em.kategorien.filter((k) => k.typ === "anzahl");
+  r.tabelle(
+    [{ titel: "Schläuche und Armaturen", anteil: 2 }, { titel: "Art", anteil: 2 }, { titel: "Bestand (Stück)", anteil: 1.2, rechts: true }],
+    anzahl.map((k) => ({ zellen: [k.untergruppe, k.name, nz(k.gesamt)] })),
+  );
+  const statusKat = em.kategorien.filter((k) => k.typ === "status");
+  r.tabelle(
+    [{ titel: "Atemschutz / PSA", anteil: 2 }, { titel: "Einheit", anteil: 0.8 },
+      ...em.status.map((s2) => ({ titel: s2.name, anteil: 1.15, rechts: true })), { titel: "Gesamt", anteil: 0.9, rechts: true }],
+    statusKat.map((k) => ({ zellen: [k.name, k.einheit, ...em.status.map((s2) => nz(k.mengen[s2.key])), nz(k.gesamt)],
+      farben: [, , k.verfuegbar === 0 ? FARBE.rot : null] })),
   );
 
-  // 5. Hinweise (nur aus erfassten Daten abgeleitet)
+  // 5. Versorgung
+  r.abschnitt("5. Verpflegung");
+  r.tabelle(
+    [{ titel: "Verpflegung", anteil: 2 }, { titel: "Einheit", anteil: 0.8 }, ...vs.status.map((s2) => ({ titel: s2.name, anteil: 1.3, rechts: true })),
+      { titel: "Gesamt", anteil: 0.9, rechts: true }],
+    vs.kategorien.map((k) => ({ zellen: [k.name, k.einheit, ...vs.status.map((s2) => nz(k.mengen[s2.key])), nz(k.gesamt)] })),
+  );
+
+  // Hinweise (nur aus erfassten Daten abgeleitet)
   const alle = d.bereiche.flatMap((b) => b.kategorien.map((k) => {
     const grp = b.gruppen.find((x) => x.key === k.gruppe_key);
     return { ...k, anzeige: grp?.key === "kraftstoff" ? `${grp.name} ${k.name}` : b.key === "kraefte" ? `Kräfte ${k.name}` : k.name, bereich: b.key };
@@ -199,17 +235,17 @@ export function lageberichtErstellen({ uebersicht: d, objekte, protokoll, bearbe
   const nichtErfasst = alle.filter((k) => k.erfassungsstand === "nicht_erfasst");
   const teilweise = alle.filter((k) => k.erfassungsstand === "teilweise");
   const keineBereit = alle.filter((k) => k.bereich === "einsatzmittel" && k.verfuegbar === 0);
-  if (keineBereit.length) hinweise.push(`Keine einsatzbereiten Mittel: ${keineBereit.map((k) => k.anzeige).join(", ")}.`);
+  if (keineBereit.length) hinweise.push(`Nichts verfügbar bzw. einsatzbereit: ${keineBereit.map((k) => k.anzeige).join(", ")}.`);
   if (teilweise.length) hinweise.push(`Nur teilweise erfasst: ${teilweise.map((k) => k.anzeige).join(", ")}.`);
   if (nichtErfasst.length) hinweise.push(`Nicht erfasst: ${nichtErfasst.map((k) => k.anzeige).join(", ")}.`);
-  r.abschnitt("5. Hinweise");
+  r.abschnitt("6. Hinweise");
   if (!hinweise.length) r.absatz("Alle Bereiche sind vollständig erfasst.");
   for (const h of hinweise) { r.absatz(`•  ${h}`); r.y += 2; }
   r.y += 2;
   r.absatz("„—“ bedeutet: nicht erfasst. Eine 0 wurde ausdrücklich eingetragen oder bestätigt.", { groesse: 8.5, farbe: FARBE.grau });
 
-  // 6. Änderungsprotokoll (chronologisch)
-  r.abschnitt(`6. Änderungsprotokoll (${protokoll.length} Einträge)`);
+  // Änderungsprotokoll (chronologisch)
+  r.abschnitt(`7. Änderungsprotokoll (${protokoll.length} Einträge)`);
   const fmt = protokollFormatierer(d, { absolut: true });
   r.tabelle(
     [{ titel: "Zeit", anteil: 1.25 }, { titel: "Bereich", anteil: 1.7 }, { titel: "Aktion", anteil: 1.15 },

@@ -1,6 +1,8 @@
 // Darstellung eines Einsatzes: Kräfte, Einsatzmittel, Versorgung
 // nurLesen = beendeter Einsatz: keine Bedienelemente zum Ändern
 
+import { FAHRZEUGSTATUS, STATUS_WHITEBOARD } from "./daten/struktur.js";
+import { icon } from "./symbole.js";
 import { dot, esc, farbe, zahl } from "./ui.js";
 
 const LEER_TEXT = "Noch keine Bestände erfasst.";
@@ -95,39 +97,97 @@ function balkenTeile(b, k) {
   }).join("");
 }
 
-function kachel(b, k) {
-  const art = k.erfassungsart === "einzeln" ? "Einzeln" : "Menge";
+const kopf = (g, rechts = "") => `
+  <span class="kachel-kopf"><span class="kachel-icon">${icon(g.symbol)}</span><span class="name">${esc(g.name)}</span>${rechts}</span>`;
+
+// Fahrzeuge / Abrollbehälter: Anzahl, Besatzung, Verteilung auf Status 1–9
+function kachelEinzeln(b, g, k) {
+  const leer = k.anzahl_objekte === 0;
+  const verteilung = FAHRZEUGSTATUS.filter((s) => k.status_anzahl[s.wert])
+    .map((s) => `<span class="st-chip ${s.wert === STATUS_WHITEBOARD ? "st-4" : ""}"><b>${s.wert}</b>${zahl(k.status_anzahl[s.wert])}</span>`).join("");
+  return `
+    <button class="kachel" type="button" data-kategorie="${k.key}">
+      ${kopf(g, `<span class="badge">Liste</span>`)}
+      ${leer && k.erfassungsstand !== "vollstaendig"
+        ? `<span class="kachel-wert"><span class="wert zahl">—</span><span class="einheit">${esc(k.einheit)}</span></span>
+           <span class="unter">Liste noch leer</span><span class="erfassen">Hinzufügen</span>`
+        : `<span class="kachel-wert"><span class="wert zahl">${zahl(k.anzahl_objekte)}</span>
+             <span class="einheit">${esc(k.einheit)}${k.besatzung !== null ? ` · Besatzung <b class="zahl">${zahl(k.besatzung)}</b>` : ""}</span></span>
+           <span class="unter">${k.ohne_status ? `<span style="color:var(--warn)">${zahl(k.ohne_status)} ohne Status</span>` : "Status je Eintrag erfasst"}</span>
+           <span class="st-verteilung">${verteilung || '<span class="text-3">Noch kein Status vergeben</span>'}</span>`}
+    </button>`;
+}
+
+// Kraftstoff / Schaummittel: verfügbar = Gesamt − abkommandiert
+function vorratZeile(k, mitName) {
+  const offen = k.erfassungsstand === "nicht_erfasst";
+  const anteil = !offen && k.gesamt ? (k.abkommandiert / k.gesamt) * 100 : 0;
+  return `
+    <button class="gz vorrat ${offen ? "nicht-erfasst" : ""}" type="button" data-kategorie="${k.key}">
+      ${mitName ? `<span class="gz-name">${esc(k.name)}</span>` : ""}
+      <span class="gz-wert">
+        <span class="wert zahl ${k.verfuegbar === 0 ? "null-krit" : ""}">${zahl(offen ? null : k.verfuegbar)}</span>
+        <span class="gz-unter">${offen ? "nicht erfasst" : `${esc(k.einheit)} verfügbar · ${zahl(k.gesamt)} gesamt · ${zahl(k.abkommandiert)} abkommandiert`}</span>
+      </span>
+      <span class="balken gz-balken">${offen ? "" : `<span style="width:${100 - anteil}%;background:var(--ok)"></span><span style="width:${anteil}%;background:var(--info)"></span>`}</span>
+    </button>`;
+}
+
+function kachelVorrat(g, glieder) {
+  const mehrere = glieder.length > 1;
+  return `
+    <div class="kachel kachel-gruppe">
+      ${kopf(g, `<span class="badge">${esc(glieder[0].einheit)}</span>`)}
+      <div class="gz-liste">${glieder.map((k) => vorratZeile(k, mehrere)).join("")}</div>
+    </div>`;
+}
+
+// Schläuche und Armaturen: Stückzahlen nach Materialart
+function kachelAnzahl(g, glieder) {
+  const unter = [...new Set(glieder.map((k) => k.untergruppe))];
+  return `
+    <button class="kachel" type="button" data-gruppe="${g.key}">
+      ${kopf(g, `<span class="badge">Stück</span>`)}
+      <span class="anzahl-tabelle">
+        ${unter.map((u) => `
+          <span class="at-zeile"><span class="at-titel">${esc(u)}</span>
+            ${glieder.filter((k) => k.untergruppe === u).map((k) => `
+              <span class="at-wert ${k.gesamt === null ? "offen" : ""}"><span>${esc(k.name.replace(/-Schläuche|-Strahlrohre/, ""))}</span><b class="zahl">${zahl(k.gesamt)}</b></span>`).join("")}
+          </span>`).join("")}
+      </span>
+      ${g.erfassungsstand === "nicht_erfasst" ? '<span class="erfassen">Erfassen</span>' : ""}
+    </button>`;
+}
+
+// Pressluftatmer, Masken, PSA: Mengen je Status
+function kachelStatus(b, k, g) {
   if (k.erfassungsstand === "nicht_erfasst") {
     return `
       <button class="kachel nicht-erfasst" type="button" data-kategorie="${k.key}">
-        <span class="kachel-kopf"><span class="name">${esc(k.name)}</span><span class="badge">${art}</span></span>
+        ${kopf(g)}
         <span class="kachel-wert"><span class="wert zahl">—</span><span class="einheit">${esc(k.einheit)}</span></span>
         <span class="unter">Noch nicht erfasst</span>
         <span class="erfassen">Erfassen</span>
       </button>`;
   }
-  const balken = balkenTeile(b, k);
   const legende = b.status.map((s) => `<span>${dot(b.key, s.key)}${esc(s.name)} <b class="zahl">${zahl(k.mengen[s.key])}</b></span>`).join("");
   const verf = k.verfuegbar;
-  const nullKrit = verf === 0;
   return `
     <button class="kachel" type="button" data-kategorie="${k.key}">
-      <span class="kachel-kopf"><span class="name">${esc(k.name)}</span><span class="badge">${art}</span></span>
+      ${kopf(g)}
       <span>
         <span class="kachel-wert">
-          <span class="wert zahl ${nullKrit ? "null-krit" : ""}">${zahl(verf)}</span>
+          <span class="wert zahl ${verf === 0 ? "null-krit" : ""}">${zahl(verf)}</span>
           <span class="einheit">${esc(k.einheit)} einsatzbereit</span>
         </span>
-        <span class="unter">${nullKrit ? "Keine einsatzbereiten Mittel · " : ""}${zahl(k.gesamt)} gesamt${k.erfassungsstand === "teilweise" ? " · teilweise erfasst" : ""}</span>
+        <span class="unter">${verf === 0 ? "Keine einsatzbereiten Mittel · " : ""}${zahl(k.gesamt)} gesamt${k.erfassungsstand === "teilweise" ? " · teilweise erfasst" : ""}</span>
       </span>
-      <span class="balken">${balken}</span>
+      <span class="balken">${balkenTeile(b, k)}</span>
       <span class="legende">${legende}</span>
     </button>`;
 }
 
-// Kachel mit Unterteilung (z. B. Kraftstoff: Diesel / Super / MotoMix)
-function kachelGruppe(b, g, glieder) {
-  const einheiten = [...new Set(glieder.map((k) => k.einheit))];
+function kachelStatusGruppe(b, g, glieder) {
   const zeilen = glieder.map((k) => {
     const offen = k.erfassungsstand === "nicht_erfasst";
     const v = k.verfuegbar;
@@ -143,7 +203,7 @@ function kachelGruppe(b, g, glieder) {
   }).join("");
   return `
     <div class="kachel kachel-gruppe">
-      <span class="kachel-kopf"><span class="name">${esc(g.name)}</span><span class="badge">${esc(einheiten.join(" / "))}</span></span>
+      ${kopf(g, `<span class="badge">${esc(glieder[0].einheit)}</span>`)}
       <div class="gz-liste">${zeilen}</div>
     </div>`;
 }
@@ -152,7 +212,10 @@ function einsatzmittel(b) {
   const erfasst = b.gruppen.filter((g) => g.erfassungsstand !== "nicht_erfasst").length;
   const kacheln = b.gruppen.map((g) => {
     const glieder = b.kategorien.filter((k) => k.gruppe_key === g.key);
-    return glieder.length === 1 ? kachel(b, glieder[0]) : kachelGruppe(b, g, glieder);
+    if (g.typ === "einzeln") return kachelEinzeln(b, g, glieder[0]);
+    if (g.typ === "vorrat") return kachelVorrat(g, glieder);
+    if (g.typ === "anzahl") return kachelAnzahl(g, glieder);
+    return glieder.length === 1 ? kachelStatus(b, glieder[0], g) : kachelStatusGruppe(b, g, glieder);
   }).join("");
   return `
     <section>
@@ -164,27 +227,25 @@ function einsatzmittel(b) {
 
 // ---- Versorgung ----------------------------------------------------------
 function versorgung(b) {
-  const karten = b.kategorien.map((k) => `
-    <button class="versorgung-karte" type="button" data-kategorie="${k.key}">
-      <span class="titel">
-        <span class="name">${esc(k.name)}</span>
-        <span class="einheit">${esc(k.einheit)}${standText(k) ? ` · ${standText(k)}` : ""}</span>
-      </span>
+  const g = b.gruppen[0];
+  const zeilen = b.kategorien.map((k) => `
+    <button class="vt-zeile" type="button" data-kategorie="${k.key}">
+      <span class="vt-name">${esc(k.name)}<span class="vt-einheit">${esc(k.einheit)}${standText(k) ? ` · ${standText(k)}` : ""}</span></span>
       ${b.status.map((s) => {
         const v = k.mengen[s.key];
-        return `
-        <span class="feld ${v === null ? "nicht-erfasst" : ""}">
-          <span class="label" style="display:flex;align-items:center;gap:8px">${dot(b.key, s.key)}${esc(s.name)}</span>
-          <span class="wert zahl" style="display:block">${zahl(v)}</span>
-        </span>`;
+        return `<span class="vt-wert zahl ${v === null ? "offen" : ""}">${zahl(v)}</span>`;
       }).join("")}
     </button>`).join("");
   const erfasst = b.kategorien.filter((k) => k.erfassungsstand === "vollstaendig").length;
   return `
     <section>
-      ${bereichKopf(b, erfasst ? "vollständig erfasst" : "")}
+      ${bereichKopf(b, `${erfasst} von ${b.kategorien.length} Arten vollständig erfasst`)}
       ${leerHinweis(b)}
-      ${karten}
+      <div class="kachel versorgung-tabelle">
+        ${kopf(g)}
+        <div class="vt-kopf"><span></span>${b.status.map((s) => `<span>${dot(b.key, s.key)}${esc(s.name)}</span>`).join("")}</div>
+        ${zeilen}
+      </div>
     </section>`;
 }
 

@@ -2,25 +2,34 @@
 
 import { api } from "./api.js";
 import { EINSATZARTEN } from "./daten/struktur.js";
+import { BEREITSTELLUNGSRAUM_STATUS } from "./daten/struktur.js";
+import { icon } from "./symbole.js";
 import { datumZeit, dauer, esc, toast, zahl } from "./ui.js";
 
-// ---- Startseite: genau zwei Kacheln ----------------------------------------
+// ---- Startseite --------------------------------------------------------------
 export async function zeigeStart(main) {
   const einsaetze = await api.einsaetze();
   const laufend = einsaetze.filter((e) => e.status === "laufend");
+  const info = await api.stammInfo();
   main.innerHTML = `
-    <section class="start">
+    <section class="start drei">
       <a class="startkachel primaer" href="#/neu">
-        <span class="startkachel-symbol" aria-hidden="true">+</span>
+        <span class="startkachel-symbol" aria-hidden="true">${icon("plus", 28)}</span>
         <span class="startkachel-titel">Neuen Einsatz anlegen</span>
         <span class="startkachel-text">Gebundene Einsatzstelle oder Flächenlage</span>
       </a>
       <a class="startkachel" href="#/einsaetze">
-        <span class="startkachel-symbol" aria-hidden="true">≡</span>
+        <span class="startkachel-symbol" aria-hidden="true">${icon("liste", 26)}</span>
         <span class="startkachel-titel">Liste alter Einsätze</span>
         <span class="startkachel-text">${einsaetze.length
           ? `${zahl(einsaetze.length)} ${einsaetze.length === 1 ? "Einsatz" : "Einsätze"}${laufend.length ? ` · <b class="laufend-text">${zahl(laufend.length)} laufend</b>` : ""}`
           : "Noch keine Einsätze"}</span>
+      </a>
+      <a class="startkachel" href="#/bereitstellungsraeume">
+        <span class="startkachel-symbol" aria-hidden="true">${icon("bereitstellung", 26)}</span>
+        ${info.bereitstellungsraeume.length ? "" : '<span class="badge folgt">folgt</span>'}
+        <span class="startkachel-titel">Bereitstellungsräume</span>
+        <span class="startkachel-text">${info.bereitstellungsraeume.length ? `${zahl(info.bereitstellungsraeume.length)} hinterlegt` : "Folgt – Liste wird ergänzt"}</span>
       </a>
     </section>
     ${laufend.length ? `
@@ -51,7 +60,7 @@ export async function zeigeListe(main) {
   main.innerHTML = `
     <nav class="pfad"><a href="#/">← Start</a></nav>
     <div class="bereich-kopf"><h2>Einsätze</h2><span class="meta">${zahl(einsaetze.length)} gesamt</span>
-      <a class="knopf knopf-primaer" href="#/neu" style="margin-left:auto">Neuen Einsatz anlegen</a></div>
+      <a class="knopf knopf-hell" href="#/neu" style="margin-left:auto">${icon("plus", 18)} Neuen Einsatz eröffnen</a></div>
     ${einsaetze.length
       ? `<div class="einsatz-liste">${einsaetze.map(einsatzKarte).join("")}</div>`
       : `<div class="leer"><p>Noch keine Einsätze angelegt.</p></div>`}`;
@@ -140,4 +149,25 @@ export async function zeigeNeuFormular(main, art, { oeffneEinsatz }) {
       form.querySelector('button[type="submit"]').disabled = false;
     }
   });
+}
+
+// ---- Bereitstellungsräume (vorbereitet) -------------------------------------
+export async function zeigeBereitstellungsraeume(main) {
+  const info = await api.stammInfo();
+  const liste = info.bereitstellungsraeume;
+  main.innerHTML = `
+    <nav class="pfad"><a href="#/">← Start</a></nav>
+    <h1 class="seitentitel">Bereitstellungsräume</h1>
+    ${liste.length ? `
+      <div class="einsatz-liste">${liste.map((b) => `
+        <div class="einsatz-karte">
+          <span class="ek-kopf"><span class="ek-stichwort">${esc(b.bezeichnung)}</span>
+            <span class="ek-status">${esc(BEREITSTELLUNGSRAUM_STATUS.find((s) => s.key === b.status)?.name || "")}</span></span>
+          <span class="ek-ort">${esc(b.standort)}</span>
+          <span class="ek-zeit">${esc(b.groesse)}${b.kapazitaet_loeschzuege !== null ? ` · Kapazität ${zahl(b.kapazitaet_loeschzuege)} Löschzüge` : ""}</span>
+        </div>`).join("")}</div>`
+    : `
+      <div class="leer folgt-hinweis"><p><span class="badge folgt">folgt</span> Folgt – Liste wird ergänzt</p></div>
+      <p class="text-2">Vorbereitet sind je Bereitstellungsraum: Bezeichnung, Ort bzw. Standort, Größe,
+        Kapazität in Anzahl möglicher Löschzüge und Status (${BEREITSTELLUNGSRAUM_STATUS.map((s) => esc(s.name)).join(" / ")}).</p>`}`;
 }
