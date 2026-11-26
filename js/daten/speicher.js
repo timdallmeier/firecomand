@@ -7,7 +7,7 @@
 // Jede Schreiboperation liest Stammdaten und Einsatz, ändert sie und schreibt
 // beides samt Protokolleinträgen in EINER Transaktion.
 
-import { migriereV2zuV3 } from "./migration.js";
+import { migriereV2zuV3, migriereV3zuV4, migriereV4zuV5 } from "./migration.js";
 import { SCHEMA_VERSION, leereStammdaten } from "./struktur.js";
 
 const DB_NAME = "firecommand";
@@ -52,7 +52,10 @@ function schemaAktualisieren(db) {
       e.onsuccess = () => {
         try {
           const einsaetze = e.result;
-          const eintraege = migriereV2zuV3(stamm, einsaetze);
+          const eintraege = [];
+          if ((stamm.schema || 2) < 3) eintraege.push(...migriereV2zuV3(stamm, einsaetze));
+          if (stamm.schema < 4) eintraege.push(...migriereV3zuV4(stamm, einsaetze));
+          if (stamm.schema < 5) eintraege.push(...migriereV4zuV5(stamm, einsaetze));
           tx.objectStore("stamm").put(stamm, "stamm");
           for (const x of einsaetze) tx.objectStore("einsaetze").put(x);
           for (const x of eintraege) tx.objectStore("protokoll").add(x);
@@ -173,4 +176,24 @@ export async function dauerhaftAnfordern() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Löscht einen Einsatz mit ALLEN zugehörigen Daten (Einsatzstand, Whiteboard, Zuordnungen,
+ * Protokoll) in einer Transaktion. Stammdaten bleiben unberührt. Optional wird ein
+ * Systemvermerk (ohne Einsatzbezug) geschrieben.
+ */
+export async function einsatzLoeschen(einsatzId, vermerk) {
+  const db = await oeffnen();
+  const tx = db.transaction(["einsaetze", "protokoll"], "readwrite");
+  const done = fertig(tx);
+  tx.objectStore("einsaetze").delete(einsatzId);
+  const p = tx.objectStore("protokoll");
+  const cur = p.index("einsatz").openCursor(IDBKeyRange.only(einsatzId));
+  cur.onsuccess = () => {
+    const c = cur.result;
+    if (c) { c.delete(); c.continue(); }
+    else if (vermerk) p.add(vermerk);
+  };
+  await done;
 }

@@ -1,7 +1,7 @@
 // Feste Struktur von FIRECOMMAND. Hier stehen ausschließlich Bereiche, Status,
 // Kategorien und vorbereitete Wertelisten – KEINE Bestände und keine Beispieldaten.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 export const BEREICHE = [
   { key: "kraefte", name: "Kräfte" },
@@ -44,6 +44,18 @@ export const ANZAHL_FELDER = [{ key: "bestand", name: "Bestand" }];
 // die App nur die Ziffer. STATUS_IM_EINSATZORT steuert das Whiteboard.
 export const FAHRZEUGSTATUS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((wert) => ({ wert, bezeichnung: null }));
 export const STATUS_WHITEBOARD = 4;
+// Zulässige Status je Kategorie (Abrollbehälter ohne 5, 7, 8, 9)
+export const STATUS_ERLAUBT = { fahrzeuge: [1, 2, 3, 4, 5, 6, 7, 8, 9], abrollbehaelter: [1, 2, 3, 4, 6] };
+
+// Stärke eines Fahrzeugs: Anzahl Kräfte je Funktion (B IV / B III / B I), Gesamt wird berechnet.
+export const STAERKE_FUNKTIONEN = [{ key: "b4", name: "B IV" }, { key: "b3", name: "B III" }, { key: "b1", name: "B I" }];
+export const leereStaerke = () => ({ b4: 0, b3: 0, b1: 0 });
+export const staerkeGesamt = (s) => (s ? (s.b4 || 0) + (s.b3 || 0) + (s.b1 || 0) : 0);
+/** Stärke in der Schreibweise der Stärkemeldung: B IV / B III / B I / Gesamt, z. B. "1/1/6/8" */
+export const staerkeText = (s) => { const x = s || leereStaerke(); return `${x.b4}/${x.b3}/${x.b1}/${staerkeGesamt(x)}`; };
+
+// Startwerte jedes Fahrzeugs bzw. Abrollbehälters in einem neuen Einsatz
+export const START_STATUS = 2;
 export function fahrzeugstatusText(wert, kurz = false) {
   if (wert === null || wert === undefined) return "kein Status";
   const s = FAHRZEUGSTATUS.find((x) => x.wert === wert);
@@ -54,16 +66,19 @@ export function fahrzeugstatusText(wert, kurz = false) {
 //   status  – Mengen je Status (Kräfte, Pressluftatmer, PSA, Verpflegung)
 //   vorrat  – Gesamtbestand + abkommandiert, verfügbar wird berechnet
 //   anzahl  – eine Stückzahl
-//   einzeln – Einzelobjekte aus der Fahrzeugliste mit Status 1–9
+//   einzeln    – Einträge aus den Stammdaten (Fahrzeuge, Abrollbehälter) mit Status
+//   positionen – frei angelegte Positionen mit Bezeichnung und Stückzahl (Atemschutz),
+//                erweiterbar um weitere Felder (z. B. Größe, Zustand, Prüfintervall)
 export const GRUPPEN = [
   { key: "kraefte", bereich: "kraefte", name: "Kräfte", unterteilung: "Funktion", summierbar: true, symbol: "kraefte" },
+  // Reihenfolge = Reihenfolge der Kacheln (1. Reihe, 2. Reihe, weitere Bereiche)
   { key: "fahrzeuge", bereich: "einsatzmittel", name: "Fahrzeuge", unterteilung: null, summierbar: false, symbol: "fahrzeug" },
   { key: "abrollbehaelter", bereich: "einsatzmittel", name: "Abrollbehälter", unterteilung: null, summierbar: false, symbol: "abrollbehaelter" },
+  { key: "atemschutz", bereich: "einsatzmittel", name: "Atemschutz", unterteilung: "Bereich", summierbar: false, symbol: "atemschutz" },
   { key: "kraftstoff", bereich: "einsatzmittel", name: "Kraftstoff", unterteilung: "Sorte", summierbar: false, symbol: "kraftstoff" },
-  { key: "schlaeuche", bereich: "einsatzmittel", name: "Schläuche und Armaturen", unterteilung: "Material", summierbar: false, symbol: "schlauch" },
-  { key: "schaummittel", bereich: "einsatzmittel", name: "Schaummittel", unterteilung: null, summierbar: false, symbol: "schaum" },
-  { key: "pressluftatmer", bereich: "einsatzmittel", name: "Pressluftatmer", unterteilung: "Art", summierbar: false, symbol: "atemschutz" },
   { key: "psa", bereich: "einsatzmittel", name: "PSA", unterteilung: null, summierbar: false, symbol: "psa" },
+  { key: "schaummittel", bereich: "einsatzmittel", name: "Schaummittel", unterteilung: null, summierbar: false, symbol: "schaum" },
+  { key: "schlaeuche", bereich: "einsatzmittel", name: "Schläuche und Armaturen", unterteilung: "Material", summierbar: false, symbol: "schlauch" },
   { key: "verpflegung", bereich: "versorgung", name: "Verpflegung", unterteilung: "Art", summierbar: false, symbol: "verpflegung" },
 ];
 
@@ -74,8 +89,11 @@ export const KATEGORIEN = [
   k("kraefte_b3", "kraefte", "kraefte", "B III", "Kräfte", "status"),
   k("kraefte_b1", "kraefte", "kraefte", "B I", "Kräfte", "status"),
 
-  k("fahrzeuge", "einsatzmittel", "fahrzeuge", "Fahrzeuge", "Fahrzeuge", "einzeln", { besatzung: true }),
-  k("abrollbehaelter", "einsatzmittel", "abrollbehaelter", "Abrollbehälter", "AB", "einzeln", { besatzung: false }),
+  k("fahrzeuge", "einsatzmittel", "fahrzeuge", "Fahrzeuge", "Fahrzeuge", "einzeln", { staerke: true, funkrufname: true }),
+  k("abrollbehaelter", "einsatzmittel", "abrollbehaelter", "Abrollbehälter", "AB", "einzeln", { staerke: false, funkrufname: false }),
+  k("pressluftatmer", "einsatzmittel", "atemschutz", "Pressluftatmer", "Stück", "positionen", { symbol: "atemschutz" }),
+  k("masken", "einsatzmittel", "atemschutz", "Masken", "Stück", "positionen", { symbol: "maske" }),
+  k("csa", "einsatzmittel", "atemschutz", "CSA", "Stück", "positionen", { symbol: "csa", langname: "Chemikalienschutzanzüge" }),
   k("kraftstoff_diesel", "einsatzmittel", "kraftstoff", "Diesel", "Liter", "vorrat"),
   k("kraftstoff_super", "einsatzmittel", "kraftstoff", "Super", "Liter", "vorrat"),
   k("kraftstoff_motomix", "einsatzmittel", "kraftstoff", "Motomix", "Liter", "vorrat"),
@@ -87,8 +105,6 @@ export const KATEGORIEN = [
   k("schaumrohr_s4", "einsatzmittel", "schlaeuche", "S4", "Stück", "anzahl", { untergruppe: "Schaumrohre" }),
   k("schaumrohr_s8", "einsatzmittel", "schlaeuche", "S8", "Stück", "anzahl", { untergruppe: "Schaumrohre" }),
   k("schaummittel", "einsatzmittel", "schaummittel", "Schaummittel", "Liter", "vorrat"),
-  k("pressluftatmer", "einsatzmittel", "pressluftatmer", "Pressluftatmer", "Stück", "status"),
-  k("masken", "einsatzmittel", "pressluftatmer", "Masken", "Stück", "status"),
   k("psa", "einsatzmittel", "psa", "PSA", "Sätze", "status"),
 
   k("essen_warm", "versorgung", "verpflegung", "Essen warm", "Stück", "status"),
@@ -99,6 +115,7 @@ export const KATEGORIEN = [
 
 /** Gültige Felder (Status bzw. Werte) einer Kategorie. */
 export function felder(kat) {
+  if (kat.typ === "positionen" || kat.typ === "einzeln") return [];
   if (kat.typ === "vorrat") return VORRAT_FELDER;
   if (kat.typ === "anzahl") return ANZAHL_FELDER;
   return STATUS[kat.bereich];
@@ -124,12 +141,25 @@ export const BEREITSTELLUNGSRAUM_STATUS = [
   { key: "nicht_verfuegbar", name: "Nicht verfügbar" },
 ];
 
+// Initiale Stammdatensätze (keine Einsatzdaten). Stammdaten = Bezeichnung und Funkrufname.
+// Stärke und Status werden je Einsatz geführt (Start: Status 2, Stärke 0/0/0/0).
+export const INITIALE_STAMMDATEN = [
+  { kategorie_key: "fahrzeuge", bezeichnung: "HLF 20", funkrufname: "1-HLF 20-1" },
+  { kategorie_key: "abrollbehaelter", bezeichnung: "AB-GSG/Rüst", funkrufname: "" },
+];
+
+export function initialeObjekte(startId = 1) {
+  return INITIALE_STAMMDATEN.map((d, i) => ({ id: startId + i, ...d, aktiv: true, version: 1, herkunft: "initial" }));
+}
+
 // Stammdaten: gelten für alle Einsätze.
 export function leereStammdaten() {
+  const objekte = initialeObjekte(1);
   return {
     schema: SCHEMA_VERSION,
-    objekte: [],              // Fahrzeuge / AB: { id, kategorie_key, bezeichnung, aktiv, version }
-    naechste_objekt_id: 1,
+    // Fahrzeuge / AB: { id, kategorie_key, bezeichnung, funkrufname, aktiv, version, herkunft }
+    objekte,
+    naechste_objekt_id: objekte.length + 1,
     naechste_einsatz_id: 1,
     einsatz_zaehler: {},
     bereitstellungsraeume: [], // VORBEREITET: { id, bezeichnung, standort, groesse, kapazitaet_loeschzuege, status }
@@ -146,7 +176,9 @@ export function leeresBoard() {
 export function leererEinsatzstand() {
   return {
     bestand: {},              // { katKey: { feld: { menge, am, von } } } – fehlend = nicht erfasst
-    objekt_status: {},        // { objektId: { status (1–9), besatzung, standort, bemerkungen, version, am } }
+    objekt_status: {},        // { objektId: { status, staerke: { b4, b3, b1 }, standort, bemerkungen, version, am } }
+    positionen: {},           // { katKey: [{ id, bezeichnung, stueck }] } – Atemschutz
+    naechste_position_id: 1,
     leer_bestaetigt: {},      // { katKey: true }
     board: leeresBoard(),     // Einsatzabschnitte / Whiteboard
   };

@@ -2,9 +2,9 @@
 // Beim Import wird jeder Wert geprüft. Fehlerhafte Dateien werden vollständig
 // abgelehnt, nie teilweise übernommen. Ältere Sicherungen (Schema 2) werden umgestellt.
 
-import { migriereV2zuV3 } from "./migration.js";
-import { ABSCHNITTSARTEN, EINSATZARTEN, FAHRZEUGSTATUS, KATEGORIEN, LINIENFARBEN, LINIENSTILE, SCHEMA_VERSION, SYMBOLE,
-  felder, leereStammdaten, leeresBoard, leererEinsatzstand } from "./struktur.js";
+import { migriereV2zuV3, migriereV3zuV4, migriereV4zuV5 } from "./migration.js";
+import { ABSCHNITTSARTEN, EINSATZARTEN, FAHRZEUGSTATUS, KATEGORIEN, LINIENFARBEN, LINIENSTILE, SCHEMA_VERSION, STAERKE_FUNKTIONEN, STATUS_ERLAUBT,
+  SYMBOLE, felder, leereStammdaten, leeresBoard, leererEinsatzstand } from "./struktur.js";
 import { FachFehler, MAX_MENGE, bereitstellungsraumPruefen, jetzt } from "./service.js";
 
 export const DATEITYP = "FIRECOMMAND-Sicherung";
@@ -24,15 +24,15 @@ const ablehnen = (m) => { throw new FachFehler(m); };
 
 function stammPruefen(q) {
   if (!q || typeof q !== "object") ablehnen("Sicherung enthält keine Stammdaten.");
-  const s = leereStammdaten();
+  const s = { ...leereStammdaten(), objekte: [] };
   const ids = new Set();
   for (const o of Array.isArray(q.objekte) ? q.objekte : []) {
     const k = katVon(o?.kategorie_key);
     if (!k || k.typ !== "einzeln" || !Number.isInteger(o.id) || ids.has(o.id)
-        || !istText(o.bezeichnung, 60) || !o.bezeichnung.trim()) ablehnen("Sicherung enthält einen ungültigen Eintrag der Fahrzeugliste.");
+        || !istText(o.bezeichnung, 60) || !o.bezeichnung.trim() || !istText(o.funkrufname ?? "", 40)) ablehnen("Sicherung enthält einen ungültigen Eintrag der Fahrzeugliste.");
     ids.add(o.id);
-    s.objekte.push({ id: o.id, kategorie_key: k.key, bezeichnung: o.bezeichnung, aktiv: o.aktiv !== false,
-      version: Number.isInteger(o.version) ? o.version : 1 });
+    s.objekte.push({ id: o.id, kategorie_key: k.key, bezeichnung: o.bezeichnung, funkrufname: o.funkrufname || "", aktiv: o.aktiv !== false,
+      version: Number.isInteger(o.version) ? o.version : 1, herkunft: o.herkunft === "initial" ? "initial" : "manuell" });
   }
   const maxObj = Math.max(0, ...s.objekte.map((o) => o.id));
   s.naechste_objekt_id = Math.max(maxObj + 1, Number.isInteger(q.naechste_objekt_id) ? q.naechste_objekt_id : 1);
@@ -105,12 +105,25 @@ function einsatzPruefen(e, stamm) {
   for (const [id, st] of Object.entries(e.stand?.objekt_status || {})) {
     const o = stamm.objekte.find((x) => x.id === Number(id));
     const status = st?.status ?? null;
-    if (!o || (status !== null && !FAHRZEUGSTATUS.some((s) => s.wert === status))
+    if (!o || (status !== null && !STATUS_ERLAUBT[o.kategorie_key].includes(status))
+        || (st.staerke !== null && st.staerke !== undefined && (typeof st.staerke !== "object"
+          || !STAERKE_FUNKTIONEN.every((f) => st.staerke[f.key] === undefined || (istZahl(st.staerke[f.key]) && st.staerke[f.key] <= 999))))
         || (st.besatzung !== null && st.besatzung !== undefined && !istZahl(st.besatzung))) ablehnen(`Einsatz ${e.nummer}: ungültige Fahrzeugangaben.`);
-    stand.objekt_status[id] = { status, besatzung: st.besatzung ?? null, standort: String(st.standort || "").slice(0, 120),
+    stand.objekt_status[id] = { status, staerke: st.staerke ? Object.fromEntries(STAERKE_FUNKTIONEN.map((f) => [f.key, st.staerke[f.key] || 0])) : null, besatzung: st.besatzung ?? null, standort: String(st.standort || "").slice(0, 120),
       bemerkungen: String(st.bemerkungen || "").slice(0, 1000), version: Number.isInteger(st.version) ? st.version : 1, am: String(st.am || "") };
   }
   for (const [kk, v] of Object.entries(e.stand?.leer_bestaetigt || {})) if (katVon(kk) && v) stand.leer_bestaetigt[kk] = true;
+  let maxPos = 0;
+  for (const [kk, liste] of Object.entries(e.stand?.positionen || {})) {
+    const k = katVon(kk);
+    if (!k || k.typ !== "positionen" || !Array.isArray(liste)) ablehnen(`Einsatz ${e.nummer}: ungültige Atemschutz-Angaben.`);
+    stand.positionen[kk] = liste.map((p) => {
+      if (!Number.isInteger(p?.id) || !istText(p.bezeichnung, 60) || !p.bezeichnung.trim() || !istZahl(p.stueck)) ablehnen(`Einsatz ${e.nummer}: ungültige Atemschutz-Angaben.`);
+      maxPos = Math.max(maxPos, p.id);
+      return { id: p.id, bezeichnung: p.bezeichnung, stueck: p.stueck };
+    });
+  }
+  stand.naechste_position_id = Math.max(maxPos + 1, Number.isInteger(e.stand?.naechste_position_id) ? e.stand.naechste_position_id : 1);
   stand.board = boardPruefen(e.stand?.board, e.nummer);
   return {
     id: e.id, nummer: String(e.nummer || e.id), art: e.art, stichwort: e.stichwort, ort: e.ort, bemerkung: e.bemerkung || "",
@@ -134,10 +147,12 @@ export function sicherungPruefen(roh) {
   try { d = typeof roh === "string" ? JSON.parse(roh) : roh; } catch { ablehnen("Die Datei ist keine gültige Sicherung (kein JSON)."); }
   if (!d || d.typ !== DATEITYP) ablehnen("Die Datei ist keine FIRECOMMAND-Sicherung.");
   const protokollRoh = (Array.isArray(d.protokoll) ? d.protokoll : []).filter((e) => e && typeof e.zeitpunkt === "string");
-  if (d.schema === 2) {
+  if ([2, 3, 4].includes(d.schema)) {
     // Ältere Sicherung: erst umstellen, dann wie gewohnt prüfen
     if (!d.stamm || !Array.isArray(d.einsaetze)) ablehnen("Sicherung ist unvollständig.");
-    protokollRoh.push(...migriereV2zuV3(d.stamm, d.einsaetze));
+    if (d.schema <= 2) protokollRoh.push(...migriereV2zuV3(d.stamm, d.einsaetze));
+    if (d.schema <= 3) protokollRoh.push(...migriereV3zuV4(d.stamm, d.einsaetze));
+    protokollRoh.push(...migriereV4zuV5(d.stamm, d.einsaetze));
   } else if (d.schema !== SCHEMA_VERSION) {
     ablehnen(`Sicherung hat Version ${d.schema}, erwartet wird ${SCHEMA_VERSION}.`);
   }

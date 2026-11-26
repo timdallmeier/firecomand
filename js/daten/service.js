@@ -12,11 +12,13 @@
 
 import {
   ABSCHNITTSARTEN, BEREICHE, BEREITSTELLUNGSRAUM_STATUS, EINSATZARTEN, FAHRZEUGSTATUS, GRUPPEN, KATEGORIEN,
-  LINIENFARBEN, LINIENSTILE, STATUS, STATUS_WHITEBOARD, SYMBOLE, felder, fahrzeugstatusText, leeresBoard, leererEinsatzstand,
+  LINIENFARBEN, LINIENSTILE, STAERKE_FUNKTIONEN, START_STATUS, STATUS, STATUS_ERLAUBT, STATUS_WHITEBOARD, SYMBOLE, felder,
+  fahrzeugstatusText, leereStaerke, leeresBoard, staerkeGesamt,
+  leererEinsatzstand,
 } from "./struktur.js";
 
 export const MAX_MENGE = 1000000;
-const MAX_TEXT = { bezeichnung: 60, standort: 120, bemerkungen: 1000, stichwort: 80, ort: 120, bemerkung: 500,
+const MAX_TEXT = { funkrufname: 40, bezeichnung: 60, standort: 120, bemerkungen: 1000, stichwort: 80, ort: 120, bemerkung: 500,
   name: 60, text: 300, label: 60, groesse: 60 };
 
 export class FachFehler extends Error { constructor(m) { super(m); this.status = 400; } }
@@ -34,7 +36,7 @@ function ganzzahl(wert, feld = "Menge") {
   return wert;
 }
 
-const FELDNAME = { bezeichnung: "Bezeichnung", standort: "Standort", bemerkungen: "Bemerkungen", stichwort: "Einsatzstichwort",
+const FELDNAME = { funkrufname: "Funkrufname", bezeichnung: "Bezeichnung", standort: "Standort", bemerkungen: "Bemerkungen", stichwort: "Einsatzstichwort",
   ort: "Einsatzort / Objekt", bemerkung: "Bemerkung", name: "Bezeichnung", text: "Text", label: "Beschriftung", groesse: "Größe" };
 
 function text(wert, feld, pflicht = false) {
@@ -123,7 +125,7 @@ export function einsatzAnlegen(stamm, daten, benutzer, optionen = {}) {
 
 /**
  * VORBEREITET für den Standarddatensatz (Excel folgt).
- * Format: { mengen: { katKey: { feld: Zahl } }, objekte: { objektId: { status, besatzung } } }
+ * Format: { mengen: { katKey: { feld: Zahl } }, objekte: { objektId: { status, staerke } } }
  */
 export function standarddatenAnwenden(stamm, einsatz, benutzer) {
   const sd = stamm.standarddatensatz;
@@ -137,18 +139,22 @@ export function standarddatenAnwenden(stamm, einsatz, benutzer) {
     const o = stamm.objekte.find((x) => x.id === Number(id) && x.aktiv);
     if (!o) continue;
     const kat = kategorie(o.kategorie_key);
-    const status = w.status ?? null;
-    if (status !== null && !FAHRZEUGSTATUS.some((s) => s.wert === status)) throw new FachFehler(`Standarddatensatz: ungültiger Status bei ${o.bezeichnung}.`);
-    const besatzung = kat.besatzung && w.besatzung !== undefined && w.besatzung !== null ? ganzzahl(w.besatzung, "Besatzung") : null;
-    einsatz.stand.objekt_status[o.id] = { status, besatzung, standort: "", bemerkungen: "", version: 1, am: jetzt() };
-    eintraege.push(katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "erfasst", null, { status, besatzung }, benutzer, "standarddatensatz"));
+    const status = statusWert(kat, w.status ?? null);
+    const staerke = staerkeWert(kat, w.staerke ?? null);
+    einsatzwertSetzen(einsatz, o, { status, staerke });
+    eintraege.push(katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "erfasst", null, { status, staerke }, benutzer, "standarddatensatz"));
   }
   return eintraege;
 }
 
-export function einsatzBeenden(einsatz, benutzer) {
+export function einsatzBeenden(stamm, einsatz, benutzer) {
   benutzer = benutzerName(benutzer);
   offen(einsatz);
+  // Stand festschreiben: Grundwerte der Stammdaten werden in den Einsatz übernommen,
+  // damit spätere Änderungen an den Stammdaten den beendeten Einsatz nicht verändern.
+  for (const o of stamm.objekte) {
+    if (o.aktiv && !einsatz.stand.objekt_status[o.id]) einsatzwertSetzen(einsatz, o, {});
+  }
   einsatz.status = "beendet";
   einsatz.ende = jetzt();
   einsatz.beendet_von = benutzer;
@@ -161,9 +167,11 @@ export function einsatzKurz(e) {
 }
 
 // ---- Lesen / Berechnen ---------------------------------------------------
+// Laufender Einsatz: aktive Einträge der Stammdaten + ausgemusterte mit Angaben in diesem Einsatz.
+// Beendeter Einsatz: nur Einträge, die beim Beenden festgeschrieben wurden.
+const imEinsatz = (o, einsatz) => (einsatz.status === "beendet" ? !!einsatz.stand.objekt_status[o.id] : o.aktiv || !!einsatz.stand.objekt_status[o.id]);
 function einzelobjekteImEinsatz(stamm, einsatz, katKey) {
-  // Aktive Objekte der Fahrzeugliste + ausgemusterte, die in diesem Einsatz Angaben haben
-  return stamm.objekte.filter((o) => o.kategorie_key === katKey && (o.aktiv || einsatz.stand.objekt_status[o.id]));
+  return stamm.objekte.filter((o) => o.kategorie_key === katKey && imEinsatz(o, einsatz));
 }
 
 function kategorieAuswerten(stamm, einsatz, kat) {
@@ -174,17 +182,23 @@ function kategorieAuswerten(stamm, einsatz, kat) {
 
   if (kat.typ === "einzeln") {
     const obj = einzelobjekteImEinsatz(stamm, einsatz, kat.key);
-    const mitStatus = obj.filter((o) => einsatz.stand.objekt_status[o.id]?.status);
+    const werte = obj.map((o) => wirksam(o, einsatz));
+    const mitStatus = werte.filter((w) => w.status !== null);
     const leer = obj.length === 0 && einsatz.stand.leer_bestaetigt[kat.key];
     const erf = leer ? "vollstaendig" : !mitStatus.length ? "nicht_erfasst" : mitStatus.length === obj.length ? "vollstaendig" : "teilweise";
-    const status = Object.fromEntries(FAHRZEUGSTATUS.map((s) => [s.wert,
-      mitStatus.filter((o) => einsatz.stand.objekt_status[o.id].status === s.wert).length]));
-    const besatzungen = obj.map((o) => einsatz.stand.objekt_status[o.id]?.besatzung).filter((v) => v !== null && v !== undefined);
+    const status = Object.fromEntries(FAHRZEUGSTATUS.map((s) => [s.wert, mitStatus.filter((w) => w.status === s.wert).length]));
+    const staerkeSumme = leereStaerke();
+    for (const w of werte) for (const f of STAERKE_FUNKTIONEN) staerkeSumme[f.key] += w.staerke?.[f.key] || 0;
     return { ...basis, anzahl_objekte: obj.length, ohne_status: obj.length - mitStatus.length,
-      status_anzahl: status, mengen: {}, erfassungsstand: erf,
-      gesamt: erf === "nicht_erfasst" ? null : obj.length,
-      besatzung: kat.besatzung && besatzungen.length ? besatzungen.reduce((a, b) => a + b, 0) : null,
-      verfuegbar: null };
+      status_anzahl: status, staerke_summe: kat.staerke ? { ...staerkeSumme, gesamt: staerkeGesamt(staerkeSumme) } : null,
+      mengen: {}, erfassungsstand: erf,
+      gesamt: erf === "nicht_erfasst" ? null : obj.length, verfuegbar: null };
+  }
+
+  if (kat.typ === "positionen") {
+    const liste = (einsatz.stand.positionen || {})[kat.key] || [];
+    return { ...basis, positionen: structuredClone(liste), mengen: {}, erfassungsstand: liste.length ? "vollstaendig" : "nicht_erfasst",
+      gesamt: liste.length ? liste.reduce((a, p) => a + p.stueck, 0) : null, verfuegbar: null, langname: kat.langname || kat.name, symbol: kat.symbol };
   }
 
   const vorhanden = mengen(einsatz, kat.key);
@@ -399,58 +413,90 @@ export function leerBestaetigen(stamm, einsatz, katKey, benutzer) {
 }
 
 // ---- Fahrzeuge und Abrollbehälter ----------------------------------------
-// Version eines Objekts im Einsatz = "Stammversion.Einsatzversion"
+// Stammdaten (gelten für alle Einsätze): Bezeichnung und Funkrufname.
+// Je Einsatz (einsatz.stand.objekt_status, getrennt von den Stammdaten): Status und
+// Stärke (Anzahl B IV / B III / B I). Startwerte: Status 2, Stärke 0/0/0/0.
+
+/** Wirksame Werte eines Eintrags im Einsatz (Einsatzwert, sonst Startwert). */
+function wirksam(o, einsatz) {
+  const kat = kategorie(o.kategorie_key);
+  const st = einsatz.stand.objekt_status[o.id];
+  const staerke = kat.staerke ? { ...leereStaerke(), ...(st?.staerke || {}) } : null;
+  if (st) return { status: st.status ?? null, staerke, standort: st.standort ?? "", bemerkungen: st.bemerkungen ?? "", st };
+  return { status: START_STATUS, staerke, standort: "", bemerkungen: "", st: null };
+}
+export const wirksamerStatus = (o, einsatz) => wirksam(o, einsatz).status;
+
+// Version eines Eintrags im Einsatz = "Stammversion.Einsatzversion"
 const versionVon = (o, st) => `${o.version}.${st ? st.version : 0}`;
 
 function objektAnsicht(o, einsatz) {
-  const st = einsatz.stand.objekt_status[o.id];
+  const w = wirksam(o, einsatz);
   const brd = board(einsatz);
   const abschnittId = brd.zuordnung[o.id] ?? null;
   return {
-    id: o.id, kategorie_key: o.kategorie_key, bezeichnung: o.bezeichnung, aktiv: o.aktiv,
-    status: st?.status ?? null, besatzung: st?.besatzung ?? null,
-    standort: st?.standort ?? "", bemerkungen: st?.bemerkungen ?? "",
+    id: o.id, kategorie_key: o.kategorie_key, bezeichnung: o.bezeichnung, funkrufname: o.funkrufname || "",
+    aktiv: o.aktiv, herkunft: o.herkunft || null,
+    status: w.status, staerke: w.staerke, standort: w.standort, bemerkungen: w.bemerkungen,
     abschnitt_id: abschnittId,
     abschnitt_name: abschnittId !== null ? brd.abschnitte.find((a) => a.id === abschnittId)?.name ?? null : null,
-    version: versionVon(o, st),
+    version: versionVon(o, w.st),
   };
 }
 
 export function objekte(stamm, einsatz, katKey) {
   if (katKey) kategorie(katKey);
   return stamm.objekte
-    .filter((o) => (!katKey || o.kategorie_key === katKey) && (o.aktiv || einsatz.stand.objekt_status[o.id]))
+    .filter((o) => (!katKey || o.kategorie_key === katKey) && imEinsatz(o, einsatz))
     .map((o) => objektAnsicht(o, einsatz))
     .sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, "de", { sensitivity: "base", numeric: true }));
 }
 
-function bezeichnungFrei(stamm, bez, ausserId = null) {
+function bezeichnungFrei(stamm, katKey, bez, ausserId = null) {
   const k = bez.toLocaleLowerCase("de");
-  if (stamm.objekte.some((o) => o.id !== ausserId && o.aktiv && o.bezeichnung.toLocaleLowerCase("de") === k)) {
+  if (stamm.objekte.some((o) => o.id !== ausserId && o.aktiv && o.kategorie_key === katKey && o.bezeichnung.toLocaleLowerCase("de") === k)) {
     throw new FachFehler(`Die Bezeichnung „${bez}“ ist bereits vergeben.`);
   }
 }
 
-function statusWert(v) {
+export function statusWert(kat, v) {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "string" ? Number(v) : v;
-  if (!FAHRZEUGSTATUS.some((s) => s.wert === n)) throw new FachFehler("Bitte einen Status von 1 bis 9 wählen.");
+  const erlaubt = STATUS_ERLAUBT[kat.key] || FAHRZEUGSTATUS.map((s) => s.wert);
+  if (!erlaubt.includes(n)) throw new FachFehler(`${kat.name}: Zulässig sind nur Status ${erlaubt.join(", ")}.`);
   return n;
 }
 
-function besatzungWert(kat, v) {
-  if (!kat.besatzung || v === null || v === undefined || v === "") return null;
-  return ganzzahl(v, "Besatzungsstärke");
+function staerkeWert(kat, v) {
+  if (!kat.staerke) return null;
+  if (v === null || v === undefined) return leereStaerke();
+  if (typeof v !== "object") throw new FachFehler("Stärke: Ungültige Angabe.");
+  const s = leereStaerke();
+  for (const f of STAERKE_FUNKTIONEN) s[f.key] = v[f.key] === undefined || v[f.key] === null ? 0 : ganzzahl(v[f.key], `Stärke ${f.name}`);
+  return s;
 }
 
 function objektFelder(daten, kat) {
   if (!daten || typeof daten !== "object") throw new FachFehler("Ungültige Daten.");
   return {
     bezeichnung: text(daten.bezeichnung, "bezeichnung", true),
-    status: statusWert(daten.status),
-    besatzung: besatzungWert(kat, daten.besatzung),
+    funkrufname: kat.funkrufname ? text(daten.funkrufname, "funkrufname") : "",
+    status: daten.status === undefined ? START_STATUS : statusWert(kat, daten.status),
+    staerke: staerkeWert(kat, daten.staerke),
     standort: text(daten.standort, "standort"),
     bemerkungen: text(daten.bemerkungen, "bemerkungen"),
+  };
+}
+
+function einsatzwertSetzen(einsatz, o, werte) {
+  const w = wirksam(o, einsatz);
+  einsatz.stand.objekt_status[o.id] = {
+    status: werte.status !== undefined ? werte.status : w.status,
+    staerke: werte.staerke !== undefined ? werte.staerke : w.staerke,
+    standort: werte.standort !== undefined ? werte.standort : w.standort,
+    bemerkungen: werte.bemerkungen !== undefined ? werte.bemerkungen : w.bemerkungen,
+    besatzung: w.st?.besatzung ?? null,          // ältere Angabe (Version 2) bleibt erhalten
+    version: (w.st?.version || 0) + 1, am: jetzt(),
   };
 }
 
@@ -459,24 +505,25 @@ function zuordnungPruefen(stamm, einsatz, o, benutzer) {
   const brd = board(einsatz);
   const abschnittId = brd.zuordnung[o.id];
   if (abschnittId === undefined) return [];
-  if (einsatz.stand.objekt_status[o.id]?.status === STATUS_WHITEBOARD && o.aktiv) return [];
+  if (wirksamerStatus(o, einsatz) === STATUS_WHITEBOARD && o.aktiv) return [];
   delete brd.zuordnung[o.id];
   const a = brd.abschnitte.find((x) => x.id === abschnittId);
   return [boardEintrag(einsatz, `fahrzeug:${o.bezeichnung}`, "zuordnung_aufgehoben", a?.name ?? null, null, benutzer)];
 }
 
-/** Neuer Eintrag in der Fahrzeugliste (gilt für alle künftigen Einsätze) samt Angaben für diesen Einsatz. */
+/** Neuer Stammdatensatz (Bezeichnung, Funkrufname – gilt für alle Einsätze). Status/Stärke gelten nur in diesem Einsatz. */
 export function objektAnlegen(stamm, einsatz, daten, benutzer) {
   benutzer = benutzerName(benutzer);
   offen(einsatz);
   const kat = kategorie(daten?.kategorie_key);
   if (kat.typ !== "einzeln") throw new FachFehler(`${kat.name} wird als Menge erfasst.`);
   const f = objektFelder(daten, kat);
-  bezeichnungFrei(stamm, f.bezeichnung);
-  const o = { id: stamm.naechste_objekt_id, kategorie_key: kat.key, bezeichnung: f.bezeichnung, aktiv: true, version: 1 };
+  bezeichnungFrei(stamm, kat.key, f.bezeichnung);
+  const o = { id: stamm.naechste_objekt_id, kategorie_key: kat.key, bezeichnung: f.bezeichnung, funkrufname: f.funkrufname,
+    aktiv: true, version: 1, herkunft: "manuell" };
   stamm.naechste_objekt_id += 1;
   stamm.objekte.push(o);
-  einsatz.stand.objekt_status[o.id] = { status: f.status, besatzung: f.besatzung, standort: f.standort, bemerkungen: f.bemerkungen, version: 1, am: jetzt() };
+  einsatzwertSetzen(einsatz, o, { status: f.status, staerke: f.staerke, standort: f.standort, bemerkungen: f.bemerkungen });
   delete einsatz.stand.leer_bestaetigt[kat.key];
   return { objekt: objektAnsicht(o, einsatz),
     eintraege: abschluss(einsatz, [katEintrag(einsatz, kat, `objekt:${f.bezeichnung}`, "angelegt", null, f, benutzer)]) };
@@ -488,70 +535,73 @@ export function objektAendern(stamm, einsatz, id, daten, benutzer) {
   const o = stamm.objekte.find((x) => x.id === id);
   if (!o) throw new NichtGefunden("Eintrag existiert nicht (mehr).");
   const kat = kategorie(o.kategorie_key);
-  const st = einsatz.stand.objekt_status[o.id];
-  if (daten?.version !== versionVon(o, st)) {
+  const vorherSt = einsatz.stand.objekt_status[o.id];
+  if (daten?.version !== versionVon(o, vorherSt)) {
     throw new Konflikt("Der Eintrag wurde zwischenzeitlich geändert. Bitte aktuelle Daten prüfen.", objektAnsicht(o, einsatz));
   }
   const f = objektFelder(daten, kat);
-  bezeichnungFrei(stamm, f.bezeichnung, id);
+  bezeichnungFrei(stamm, kat.key, f.bezeichnung, id);
   const vorher = objektAnsicht(o, einsatz);
   const diffAlt = {};
   const diffNeu = {};
-  for (const k of Object.keys(f)) if (vorher[k] !== f[k]) { diffAlt[k] = vorher[k]; diffNeu[k] = f[k]; }
+  const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  for (const k of Object.keys(f)) if (!gleich(vorher[k], f[k])) { diffAlt[k] = vorher[k]; diffNeu[k] = f[k]; }
   if (!Object.keys(diffAlt).length) return { objekt: vorher, eintraege: [] };
-  if (f.bezeichnung !== o.bezeichnung) { o.bezeichnung = f.bezeichnung; o.version += 1; }
-  einsatz.stand.objekt_status[o.id] = { status: f.status, besatzung: f.besatzung, standort: f.standort, bemerkungen: f.bemerkungen,
-    version: (st?.version || 0) + 1, am: jetzt() };
+  // Stammdaten
+  if (f.bezeichnung !== o.bezeichnung || f.funkrufname !== (o.funkrufname || "")) {
+    o.bezeichnung = f.bezeichnung; o.funkrufname = f.funkrufname; o.version += 1;
+  }
+  // Einsatzwerte
+  if (["status", "staerke", "standort", "bemerkungen"].some((k) => k in diffAlt)) {
+    einsatzwertSetzen(einsatz, o, { status: f.status, staerke: f.staerke, standort: f.standort, bemerkungen: f.bemerkungen });
+  }
   const aktion = Object.keys(diffAlt).length === 1 && "status" in diffAlt ? "status" : "geaendert";
   const eintraege = [katEintrag(einsatz, kat, `objekt:${vorher.bezeichnung}`, aktion, diffAlt, diffNeu, benutzer),
     ...zuordnungPruefen(stamm, einsatz, o, benutzer)];
   return { objekt: objektAnsicht(o, einsatz), eintraege: abschluss(einsatz, eintraege) };
 }
 
-/** Status per Auswahlmenü (1–9). Besatzung, Standort und Bemerkungen bleiben erhalten. */
+/** Status per Auswahlleiste. Andere Angaben bleiben erhalten. */
 export function objektStatusSetzen(stamm, einsatz, id, status, benutzer) {
   benutzer = benutzerName(benutzer);
   offen(einsatz);
   const o = stamm.objekte.find((x) => x.id === id);
   if (!o) throw new NichtGefunden("Eintrag existiert nicht (mehr).");
   const kat = kategorie(o.kategorie_key);
-  status = statusWert(status);
-  const st = einsatz.stand.objekt_status[o.id];
-  if ((st?.status ?? null) === status) return [];
-  einsatz.stand.objekt_status[o.id] = { status, besatzung: st?.besatzung ?? null, standort: st?.standort ?? "",
-    bemerkungen: st?.bemerkungen ?? "", version: (st?.version || 0) + 1, am: jetzt() };
+  status = statusWert(kat, status);
+  const alt = wirksamerStatus(o, einsatz);
+  if (alt === status) return [];
+  einsatzwertSetzen(einsatz, o, { status });
   delete einsatz.stand.leer_bestaetigt[kat.key];
-  const eintraege = [katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "status",
-    { status: st?.status ?? null }, { status }, benutzer), ...zuordnungPruefen(stamm, einsatz, o, benutzer)];
-  return abschluss(einsatz, eintraege);
+  return abschluss(einsatz, [katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "status", { status: alt }, { status }, benutzer),
+    ...zuordnungPruefen(stamm, einsatz, o, benutzer)]);
 }
 
-/** Besatzungsstärke um +1 / −1 oder auf einen Wert setzen. */
-export function objektBesatzung(stamm, einsatz, id, { delta, wert }, benutzer) {
+/** Stärke ändern: { funktion: "b4"|"b3"|"b1", delta: ±1 } oder { staerke: { b4, b3, b1 } }. */
+export function objektStaerkeSetzen(stamm, einsatz, id, aenderung, benutzer) {
   benutzer = benutzerName(benutzer);
   offen(einsatz);
   const o = stamm.objekte.find((x) => x.id === id);
   if (!o) throw new NichtGefunden("Eintrag existiert nicht (mehr).");
   const kat = kategorie(o.kategorie_key);
-  if (!kat.besatzung) throw new FachFehler(`${kat.name} haben keine Besatzung.`);
-  const st = einsatz.stand.objekt_status[o.id];
-  const alt = st?.besatzung ?? null;
+  if (!kat.staerke) throw new FachFehler(`${kat.name} haben keine Stärke.`);
+  const alt = wirksam(o, einsatz).staerke;
   let neu;
-  if (wert !== undefined) neu = ganzzahl(wert, "Besatzungsstärke");
-  else if (delta === 1 || delta === -1) {
-    if (alt === null && delta < 0) throw new FachFehler("Besatzung noch nicht erfasst – zuerst + tippen.");
-    neu = (alt ?? 0) + delta;
-    if (neu < 0) throw new FachFehler("Weniger als 0 ist nicht möglich.");
-  } else throw new FachFehler("Ungültige Änderung.");
-  if (neu === alt) return [];
-  einsatz.stand.objekt_status[o.id] = { status: st?.status ?? null, besatzung: neu, standort: st?.standort ?? "",
-    bemerkungen: st?.bemerkungen ?? "", version: (st?.version || 0) + 1, am: jetzt() };
-  return abschluss(einsatz, [katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "geaendert",
-    { besatzung: alt }, { besatzung: neu }, benutzer)]);
+  if (aenderung?.staerke) neu = staerkeWert(kat, aenderung.staerke);
+  else {
+    const f = STAERKE_FUNKTIONEN.find((x) => x.key === aenderung?.funktion);
+    if (!f || (aenderung.delta !== 1 && aenderung.delta !== -1)) throw new FachFehler("Ungültige Änderung der Stärke.");
+    neu = { ...alt, [f.key]: alt[f.key] + aenderung.delta };
+    if (neu[f.key] < 0) throw new FachFehler("Weniger als 0 ist nicht möglich.");
+    if (neu[f.key] > 999) throw new FachFehler("Wert ist unplausibel hoch.");
+  }
+  if (JSON.stringify(alt) === JSON.stringify(neu)) return [];
+  einsatzwertSetzen(einsatz, o, { staerke: neu });
+  return abschluss(einsatz, [katEintrag(einsatz, kat, `objekt:${o.bezeichnung}`, "geaendert", { staerke: alt }, { staerke: neu }, benutzer)]);
 }
 
 /**
- * Entfernt einen Eintrag aus der Fahrzeugliste (künftige Einsätze) und aus diesem Einsatz.
+ * Entfernt einen Eintrag aus der Liste (künftige Einsätze) und aus diesem Einsatz.
  * Beendete Einsätze behalten ihre Angaben – der Eintrag wird nur ausgemustert, nie gelöscht.
  */
 export function objektAusmustern(stamm, einsatz, id, version, benutzer) {
@@ -565,12 +615,73 @@ export function objektAusmustern(stamm, einsatz, id, version, benutzer) {
   o.aktiv = false;
   o.version += 1;
   delete einsatz.stand.objekt_status[o.id];
-  const { bezeichnung, status, besatzung, standort, bemerkungen } = vorher;
+  const { bezeichnung, funkrufname, status, staerke, standort, bemerkungen } = vorher;
   return abschluss(einsatz, [
     ...zuordnungPruefen(stamm, einsatz, o, benutzer),
     katEintrag(einsatz, kategorie(o.kategorie_key), `objekt:${bezeichnung}`, "geloescht",
-      { bezeichnung, status, besatzung, standort, bemerkungen }, null, benutzer),
+      { bezeichnung, funkrufname, status, staerke, standort, bemerkungen }, null, benutzer),
   ]);
+}
+
+// ---- Atemschutz: Positionen mit Bezeichnung und Stückzahl -----------------
+function positionsKat(katKey) {
+  const kat = kategorie(katKey);
+  if (kat.typ !== "positionen") throw new FachFehler(`${kat.name} hat keine Positionsliste.`);
+  return kat;
+}
+const positionen = (einsatz, katKey) => ((einsatz.stand.positionen ||= {})[katKey] ||= []);
+
+export function positionAnlegen(einsatz, katKey, daten, benutzer) {
+  benutzer = benutzerName(benutzer);
+  offen(einsatz);
+  const kat = positionsKat(katKey);
+  const bezeichnung = text(daten?.bezeichnung, "bezeichnung", true);
+  const stueck = ganzzahl(daten?.stueck ?? 0, "Stückzahl");
+  const liste = positionen(einsatz, katKey);
+  if (liste.some((p) => p.bezeichnung.toLocaleLowerCase("de") === bezeichnung.toLocaleLowerCase("de"))) {
+    throw new FachFehler(`„${bezeichnung}“ ist bereits vorhanden.`);
+  }
+  einsatz.stand.naechste_position_id ||= 1;
+  liste.push({ id: einsatz.stand.naechste_position_id++, bezeichnung, stueck });
+  return abschluss(einsatz, [katEintrag(einsatz, kat, `position:${bezeichnung}`, "angelegt", null, stueck, benutzer)]);
+}
+
+export function positionAendern(einsatz, katKey, id, daten, benutzer) {
+  benutzer = benutzerName(benutzer);
+  offen(einsatz);
+  const kat = positionsKat(katKey);
+  const liste = positionen(einsatz, katKey);
+  const p = liste.find((x) => x.id === id);
+  if (!p) throw new NichtGefunden("Position existiert nicht (mehr).");
+  const eintraege = [];
+  if (daten.bezeichnung !== undefined) {
+    const b = text(daten.bezeichnung, "bezeichnung", true);
+    if (liste.some((x) => x.id !== id && x.bezeichnung.toLocaleLowerCase("de") === b.toLocaleLowerCase("de"))) throw new FachFehler(`„${b}“ ist bereits vorhanden.`);
+    if (b !== p.bezeichnung) { eintraege.push(katEintrag(einsatz, kat, `position:${p.bezeichnung}`, "geaendert", { bezeichnung: p.bezeichnung }, { bezeichnung: b }, benutzer)); p.bezeichnung = b; }
+  }
+  let neu = p.stueck;
+  if (daten.delta === 1 || daten.delta === -1) neu = p.stueck + daten.delta;
+  else if (daten.stueck !== undefined) neu = ganzzahl(daten.stueck, "Stückzahl");
+  if (neu < 0) throw new FachFehler("Weniger als 0 ist nicht möglich.");
+  if (neu > MAX_MENGE) throw new FachFehler("Wert ist unplausibel hoch.");
+  if (neu !== p.stueck) { eintraege.push(katEintrag(einsatz, kat, `position:${p.bezeichnung}`, "geaendert", p.stueck, neu, benutzer)); p.stueck = neu; }
+  return abschluss(einsatz, eintraege);
+}
+
+export function positionLoeschen(einsatz, katKey, id, benutzer) {
+  benutzer = benutzerName(benutzer);
+  offen(einsatz);
+  const kat = positionsKat(katKey);
+  const liste = positionen(einsatz, katKey);
+  const p = liste.find((x) => x.id === id);
+  if (!p) throw new NichtGefunden("Position existiert nicht (mehr).");
+  einsatz.stand.positionen[katKey] = liste.filter((x) => x !== p);
+  return abschluss(einsatz, [katEintrag(einsatz, kat, `position:${p.bezeichnung}`, "geloescht", p.stueck, null, benutzer)]);
+}
+
+export function positionenLesen(einsatz, katKey) {
+  positionsKat(katKey);
+  return structuredClone((einsatz.stand.positionen || {})[katKey] || []);
 }
 
 // ---- Einsatzabschnitte (Whiteboard) --------------------------------------
@@ -595,7 +706,7 @@ export function boardDaten(stamm, einsatz) {
   const brd = board(einsatz);
   const fahrzeuge = objekte(stamm, einsatz, "fahrzeuge")
     .filter((o) => o.status === STATUS_WHITEBOARD && o.aktiv)
-    .map((o) => ({ id: o.id, bezeichnung: o.bezeichnung, besatzung: o.besatzung, abschnitt_id: o.abschnitt_id }));
+    .map((o) => ({ id: o.id, bezeichnung: o.bezeichnung, funkrufname: o.funkrufname, staerke: o.staerke, abschnitt_id: o.abschnitt_id }));
   return { board: structuredClone(brd), fahrzeuge, status_whiteboard: STATUS_WHITEBOARD };
 }
 
@@ -661,7 +772,7 @@ export function boardAktion(stamm, einsatz, a, benutzer) {
     case "zuordnen": {
       const o = stamm.objekte.find((x) => x.id === a.objekt_id && x.aktiv);
       if (!o || o.kategorie_key !== "fahrzeuge") throw new NichtGefunden("Fahrzeug existiert nicht.");
-      if (einsatz.stand.objekt_status[o.id]?.status !== STATUS_WHITEBOARD) {
+      if (wirksamerStatus(o, einsatz) !== STATUS_WHITEBOARD) {
         throw new FachFehler(`${o.bezeichnung} hat nicht ${fahrzeugstatusText(STATUS_WHITEBOARD, true)} und kann keinem Abschnitt zugeordnet werden.`);
       }
       const altId = brd.zuordnung[o.id] ?? null;
