@@ -2,7 +2,7 @@
 // FIRECOMMAND nach dem ersten Laden ohne Netz startet.
 // Bei einer neuen Version VERSION erhöhen.
 
-const VERSION = "firecommand-ipad-3";
+const VERSION = "firecommand-ipad-5";
 const DATEIEN = [
   "./",
   "./index.html",
@@ -22,6 +22,10 @@ const DATEIEN = [
   "./js/pdf-metrik.js",
   "./js/protokoll-format.js",
   "./js/flaechenlage.js",
+  "./js/bestaende.js",
+  "./js/board.js",
+  "./js/symbole.js",
+  "./js/daten/migration.js",
   "./js/daten/struktur.js",
   "./js/daten/service.js",
   "./js/daten/speicher.js",
@@ -33,7 +37,11 @@ const DATEIEN = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(DATEIEN)).then(() => self.skipWaiting()));
+  // cache: "reload" umgeht den Browser-Zwischenspeicher – so landen bei einem Update
+  // garantiert die neuen Dateien auf dem Gerät (GitHub Pages speichert bis zu 10 Minuten zwischen).
+  e.waitUntil(caches.open(VERSION)
+    .then((c) => c.addAll(DATEIEN.map((u) => new Request(u, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {

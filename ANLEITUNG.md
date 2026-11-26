@@ -1,22 +1,55 @@
 # FIRECOMMAND auf dem iPad – offline
 
-## Bedienung in Kürze
+## Bedienung in Kürze (Version 2)
 
-* **Startseite:** zwei Kacheln – *Neuen Einsatz anlegen* und *Liste alter Einsätze*. Laufende Einsätze stehen zusätzlich darunter.
+* **Startseite:** *Neuen Einsatz anlegen*, *Liste alter Einsätze*, *Bereitstellungsräume* (folgt – Liste wird ergänzt).
 * **Neuer Einsatz:** Art wählen (*Gebundene Einsatzstelle*; *Flächenlage* folgt), Stichwort und Einsatzort eintragen,
-  Startbestand wählen (*Leer starten*; *Standarddaten übernehmen* folgt). Beginn und Einsatznummer (z. B. 2026-001) setzt die App selbst.
-* **Im Einsatz:** Ressourcenübersicht wie gewohnt. Kräfte je Status und Funktion direkt mit **−** und **+** zählen.
-  „Mit 0 Kräften beginnen“ bestätigt bewusst 0 für alle Felder.
-* **Fahrzeuge und Abrollbehälter:** Die Fahrzeugliste gilt für alle Einsätze. Der Status wird je Einsatz mit einem Tipp gesetzt.
-* **Lagebericht erzeugen:** PDF mit Einsatzdaten, Kräften, Einsatzmitteln, Fahrzeugliste, Versorgung, Hinweisen und dem
-  vollständigen Änderungsprotokoll. Über *Teilen / Sichern* direkt in OneDrive, per Mail oder AirDrop weitergeben.
-* **Einsatz beenden:** Danach nur noch Ansicht. Lagebericht und Protokoll bleiben abrufbar.
+  Startbestand wählen (*Leer starten*; *Standarddaten übernehmen* folgt).
+* **Im Einsatz** erscheinen drei Kacheln:
+  * **Kräfte und Einsatzmittel** – Kräfte je Funktion mit − / +, dazu Fahrzeuge, Abrollbehälter, Kraftstoff,
+    Schläuche und Armaturen, Schaummittel, Pressluftatmer, PSA und Verpflegung.
+  * **Einsatzabschnitte** – schwarzes Whiteboard (siehe unten).
+  * **Lagebild** – folgt in einer späteren Version.
+* **Fahrzeuge:** Bezeichnung, Besatzungsstärke (− / +) und Status 1–9 per Auswahlmenü. Abrollbehälter: Bezeichnung und Status.
+  Die Liste gilt für alle Einsätze, Status und Besatzung je Einsatz.
+* **Kraftstoff / Schaummittel:** Gesamtbestand eintragen, Mengen *abkommandieren* oder *freigeben* – verfügbar wird berechnet.
+* **Lagebericht erzeugen / Protokoll / Einsatz beenden:** in der Leiste oben im Einsatz.
+
+### Whiteboard „Einsatzabschnitte“
+
+* **+ Abschnitt:** Art wählen (Einsatzabschnitt, Untereinsatzabschnitt, Bereitstellungsraum, Sonstiger Bereich), Bezeichnung eintragen.
+* **Fahrzeuge mit Status 4** erscheinen automatisch rechts in der Leiste „Fahrzeuge Status 4“. In einen Abschnitt ziehen,
+  zwischen Abschnitten verschieben oder zum Herausnehmen auf eine freie Fläche ziehen. Ein Fahrzeug ist immer höchstens einem Abschnitt zugeordnet.
+  Bekommt es einen anderen Status, wird die Zuordnung automatisch aufgehoben und protokolliert.
+* **Verbinden:** Werkzeug *Verbinden*, dann zwei Elemente nacheinander antippen. Linienart *Führung* (durchgezogen) oder *Kommunikation* (gestrichelt), fünf Farben.
+* **Zeichnen:** Freihandlinien mit Finger oder Stift.
+* **+ Text / + Symbol:** Textfelder (z. B. Funkgruppen) und taktische Zeichen (Fahrzeuge, Einsatzleitung, Einsatzzentrale, Stab,
+  Abschnittsleitung, Trupp bis Verband, Gefahrenstelle, Sammelplatz, Wasserentnahme) mit Beschriftung.
+* **Bedienung:** Element antippen = auswählen, ziehen = verschieben, doppelt antippen = bearbeiten. Leere Fläche ziehen = Ansicht verschieben,
+  zwei Finger = zoomen. *Einpassen* zeigt alles auf einmal.
+* Die taktischen Zeichen sind eine eigene, einheitliche Bibliothek, angelehnt an die Grundformen taktischer Zeichen – nicht normgeprüft, erweiterbar in `js/symbole.js`.
 
 ## Vorbereitet, aber noch nicht aktiv
 
-* **Flächenlage:** Auswahl ist sichtbar, aber gesperrt (`js/daten/struktur.js` → `EINSATZARTEN`, Ansicht in `js/flaechenlage.js`).
-* **Standarddaten:** Option ist sichtbar, aber gesperrt, solange kein Standarddatensatz hinterlegt ist
-  (`stamm.standarddatensatz`, Übernahme in `standarddatenAnwenden` in `js/daten/service.js`). Wird mit der Excel-Liste befüllt.
+* **Flächenlage:** `EINSATZARTEN` in `js/daten/struktur.js`, Ansicht in `js/flaechenlage.js`.
+* **Standarddaten:** `stamm.standarddatensatz` + `standarddatenAnwenden` in `js/daten/service.js` (folgt mit der Excel-Liste).
+* **Bereitstellungsräume:** Datenfelder und Prüfung (`bereitstellungsraumPruefen`), Liste folgt.
+* **Lagebild:** Kachel mit Hinweis „Folgt“.
+* **Bezeichnungen der Status 1–9:** zentral in `FAHRZEUGSTATUS` in `js/daten/struktur.js` eintragen – überall wird dann „Status 2 – …“ angezeigt.
+
+## Update auf eine neue Version
+
+1. **Vorher sichern (empfohlen):** In FIRECOMMAND *Sicherung* → *Sicherung erstellen* → in OneDrive ablegen.
+2. **Dateien bei GitHub ersetzen:** Ordner `firecommand-ipad` entpacken und den **Inhalt** wie bei der Erstinstallation hochladen.
+   Gleichnamige Dateien werden dabei überschrieben. In Safari ordnerweise: bei GitHub in den Ordner wechseln (z. B. `js`) →
+   *Add file* → *Upload files* → alle Dateien aus dem gleichnamigen Finder-Ordner hineinziehen → *Commit changes*.
+3. **1–2 Minuten warten** (GitHub veröffentlicht die Seite neu).
+4. **iPad:** FIRECOMMAND über das Symbol öffnen (mit Internet). Die App lädt die neue Version und startet sich einmal selbst neu.
+   Erkennbar an der neuen Startseite. Falls nicht: App ganz schließen und erneut öffnen.
+5. Deine Daten bleiben erhalten. Nicht übertragbare Werte aus älteren Versionen stehen mit ihrem alten Wert im Protokoll.
+
+Wichtig für künftige Updates: Bei jeder Änderung an Programmdateien die Zahl in `sw.js` (`VERSION = "firecommand-ipad-…"`) erhöhen –
+sonst erkennt das iPad die neue Version nicht. In den gelieferten Paketen ist das bereits erledigt.
 
 ## Installation
 
